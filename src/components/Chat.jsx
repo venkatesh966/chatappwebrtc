@@ -9,6 +9,7 @@ const Chat = () => {
   const [peerId, setPeerId] = useState('');
   const [myId, setMyId] = useState('');
   const endRef = useRef(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     // initialize PeerJS (static ID in localStorage)
@@ -28,11 +29,21 @@ const Chat = () => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     const id = peerId.trim();
-    if (!id) return;
-    WebRTCService.connectToPeer(id);
-    setConnected(true);
+    if (!id) {
+      setError('Please enter a peer ID');
+      return;
+    }
+    
+    try {
+      setError('');
+      await WebRTCService.connectToPeer(id);
+      setConnected(true);
+    } catch (err) {
+      setError('Failed to connect: ' + (err.message || 'Unknown error'));
+      console.error('Connection error:', err);
+    }
   };
 
   const handleSendMessage = (e) => {
@@ -61,6 +72,12 @@ const Chat = () => {
         <div className="my-id-ui">
           Your ID: <b>{myId}</b>
         </div>
+
+        {error && (
+          <div className="error-message" style={{ color: 'red', margin: '10px 0' }}>
+            {error}
+          </div>
+        )}
 
         {!connected ? (
           <div className="peer-connect-ui">

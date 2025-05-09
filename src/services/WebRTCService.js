@@ -48,9 +48,27 @@ class WebRTCService {
   }
 
   connectToPeer(peerId) {
-    const conn = this.peer.connect(peerId);
-    this._handleConnection(conn);
-    return conn;
+    return new Promise((resolve, reject) => {
+      try {
+        const conn = this.peer.connect(peerId);
+        
+        conn.on('open', () => {
+          console.log('➡️ Connected to', conn.peer);
+          this.connections.set(conn.peer, conn);
+          resolve(conn);
+        });
+
+        conn.on('error', (err) => {
+          console.error('Connection error:', err);
+          reject(err);
+        });
+
+        this._handleConnection(conn);
+      } catch (err) {
+        console.error('Failed to connect:', err);
+        reject(err);
+      }
+    });
   }
 
   sendMessage(peerId, message) {
