@@ -353,3 +353,23 @@
   background: #e03b3b;
   color: #fff;
 } 
+
+.chat-card {
+  position: relative;   /* needed for the ::before */
+  overflow: hidden;
+}
+
+/* the little header strip */
+.chat-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 6px;  /* adjust thickness as you like */
+  background: linear-gradient(
+    90deg,
+    #4f8cff 0%,
+    #3b6be0 50%,
+    #3ff57a 100%
+  );
+}

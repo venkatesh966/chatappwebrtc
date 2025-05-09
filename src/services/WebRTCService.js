@@ -7,11 +7,19 @@ class WebRTCService {
     this.onMessageCallback = null;
   }
 
-  initialize(userId) {
+  initialize() {
+    // 1) grab existing ID or create & persist a new one
+    let userId = localStorage.getItem('peerjs_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('peerjs_id', userId);
+    }
+
+    // 2) instantiate Peer with that ID
     this.peer = new Peer(userId);
-    
+
     this.peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
+      console.log('My peer ID is:', id);
     });
 
     this.peer.on('connection', (conn) => {
@@ -56,15 +64,16 @@ class WebRTCService {
     }
   }
 
-  setOnMessageCallback(callback) {
-    this.onMessageCallback = callback;
+  setOnMessageCallback(cb) {
+    this.onMessageCallback = cb;
   }
 
   disconnect() {
     if (this.peer) {
       this.peer.destroy();
+      this.connections.clear();
     }
   }
 }
 
-export default new WebRTCService(); 
+export default new WebRTCService();
