@@ -5,6 +5,7 @@ class WebRTCService {
     this.peer = null;
     this.connections = new Map();
     this.onMessageCallback = null;
+    this.onPeerConnectedCallback = null;
   }
 
   initialize() {
@@ -35,6 +36,9 @@ class WebRTCService {
     conn.on('open', () => {
       console.log('➡️ Connected to', conn.peer);
       this.connections.set(conn.peer, conn);
+      if (this.onPeerConnectedCallback) {
+        this.onPeerConnectedCallback(conn.peer);
+      }
     });
 
     conn.on('data', (data) => {
@@ -82,6 +86,10 @@ class WebRTCService {
 
   setOnMessageCallback(cb) {
     this.onMessageCallback = cb;
+  }
+
+  setOnPeerConnectedCallback(cb) {
+    this.onPeerConnectedCallback = cb;
   }
 
   disconnect() {
