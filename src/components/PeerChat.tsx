@@ -2,6 +2,31 @@ import { useEffect, useRef, useState } from 'react';
 import Peer from 'peerjs';
 import './PeerChat.css';
 
+const PEER_ID_KEY = 'peerjs_id';
+const PEER_ID_TIMESTAMP_KEY = 'peerjs_id_timestamp';
+const PEER_ID_TTL = 30 * 60 * 1000; // 30 minutes in ms
+
+function getOrCreatePeerId() {
+  const now = Date.now();
+  const savedId = localStorage.getItem(PEER_ID_KEY);
+  const savedTimestamp = localStorage.getItem(PEER_ID_TIMESTAMP_KEY);
+
+  if (
+    savedId &&
+    savedTimestamp &&
+    now - parseInt(savedTimestamp, 10) < PEER_ID_TTL
+  ) {
+    return savedId;
+  }
+
+  // Generate a new random ID
+  // Peer.generateId() is not a public API, so use random string
+  const newId = Math.random().toString(36).substr(2, 16);
+  localStorage.setItem(PEER_ID_KEY, newId);
+  localStorage.setItem(PEER_ID_TIMESTAMP_KEY, now.toString());
+  return newId;
+}
+
 const PeerChat = () => {
   const [myId, setMyId] = useState<string>('...');
   const [messages, setMessages] = useState<Array<{ text: string; type: 'peer' | 'self' | 'status' }>>([]);
@@ -10,7 +35,11 @@ const PeerChat = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isCallActive, setIsCallActive] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  
+
+  // Heartbeat state and ref
+  const [lastPing, setLastPing] = useState(Date.now());
+  const heartbeatIntervalRef = useRef<number | null>(null);
+
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<import('peerjs').DataConnection | null>(null);
   const chatBoxRef = useRef<HTMLDivElement>(null);
@@ -19,8 +48,11 @@ const PeerChat = () => {
   const mediaConnectionRef = useRef<import('peerjs').MediaConnection | null>(null);
 
   useEffect(() => {
-    // Initialize PeerJS
-    const peer = new Peer();
+    // Use a constant ID for 30 minutes
+    const id = getOrCreatePeerId();
+    setMyId(id);
+
+    const peer = new Peer(id);
     peerRef.current = peer;
 
     peer.on('open', (id) => {
@@ -28,15 +60,32 @@ const PeerChat = () => {
     });
 
     peer.on('connection', (incomingConn) => {
+      // Clear any previous heartbeat interval
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+
       connRef.current = incomingConn;
       setIsConnected(true);
+      setLastPing(Date.now());
       addMessage('Connected to peer', 'status');
-      
+
+      // Heartbeat sender for this connection
+      heartbeatIntervalRef.current = window.setInterval(() => {
+        if (incomingConn.open) {
+          incomingConn.send('__ping__');
+        }
+      }, 5000);
+
       incomingConn.on('data', (data: unknown) => {
+        if (data === '__ping__') {
+          setLastPing(Date.now());
+          return;
+        }
+        setLastPing(Date.now());
         addMessage(String(data), 'peer');
       });
 
       incomingConn.on('close', () => {
+        if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
         setIsConnected(false);
         addMessage('Connection closed', 'status');
       });
@@ -47,11 +96,11 @@ const PeerChat = () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaConnectionRef.current = call;
-        
+
         if (localAudioRef.current) {
           localAudioRef.current.srcObject = stream;
         }
-        
+
         call.answer(stream);
         setIsCallActive(true);
         addMessage('Incoming call answered', 'status');
@@ -75,8 +124,23 @@ const PeerChat = () => {
     return () => {
       peer.destroy();
       endCall();
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
     };
   }, []);
+
+  // Heartbeat timeout checker
+  useEffect(() => {
+    if (!isConnected) return;
+    const timeoutCheck = window.setInterval(() => {
+      if (isConnected && Date.now() - lastPing > 15000) {
+        setIsConnected(false);
+        addMessage('Peer disconnected (timeout)', 'status');
+        if (connRef.current) connRef.current.close();
+        if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+      }
+    }, 5000);
+    return () => clearInterval(timeoutCheck);
+  }, [isConnected, lastPing]);
 
   const addMessage = (text: string, type: 'peer' | 'self' | 'status') => {
     setMessages(prev => [...prev, { text, type }]);
@@ -90,18 +154,36 @@ const PeerChat = () => {
   const connectToPeer = () => {
     if (!peerRef.current || !targetId) return;
 
+    // Clear any previous heartbeat interval
+    if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+
     const conn = peerRef.current.connect(targetId);
     connRef.current = conn;
 
     conn.on('open', () => {
       setIsConnected(true);
+      setLastPing(Date.now());
       addMessage(`Connected to ${targetId}`, 'status');
+
+      // Heartbeat sender for this connection
+      heartbeatIntervalRef.current = window.setInterval(() => {
+        if (conn.open) {
+          conn.send('__ping__');
+        }
+      }, 5000);
+
       conn.on('data', (data: unknown) => {
+        if (data === '__ping__') {
+          setLastPing(Date.now());
+          return;
+        }
+        setLastPing(Date.now());
         addMessage(String(data), 'peer');
       });
     });
 
     conn.on('close', () => {
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       setIsConnected(false);
       addMessage('Connection closed', 'status');
     });
@@ -114,7 +196,7 @@ const PeerChat = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const call = peerRef.current.call(targetId, stream);
       mediaConnectionRef.current = call;
-      
+
       if (localAudioRef.current) {
         localAudioRef.current.srcObject = stream;
       }
@@ -249,16 +331,12 @@ const PeerChat = () => {
             key={index} 
             className={`message ${msg.type === 'status' ? 'connection-status' : msg.type}`}
           >
-            {msg.type === 'status' ? msg.text : 
-              msg.type === 'peer' ? `Peer: ${msg.text}` : `You: ${msg.text}`}
+            {msg.type === 'self' ? `You: ${msg.text}` : msg.text}
           </div>
         ))}
       </div>
-
-      <audio ref={localAudioRef} autoPlay muted />
-      <audio ref={remoteAudioRef} autoPlay />
     </div>
   );
 };
 
-export default PeerChat; 
+export default PeerChat;
