@@ -8,10 +8,10 @@ const Chat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [peerId, setPeerId] = useState('');
   const [myId, setMyId] = useState('');
-  const messagesEndRef = useRef(null);
+  const endRef = useRef(null);
 
-  // initialize once, using the persisted peer ID
   useEffect(() => {
+    // initialize PeerJS (static ID in localStorage)
     WebRTCService.initialize();
     setMyId(localStorage.getItem('peerjs_id'));
 
@@ -24,9 +24,8 @@ const Chat = () => {
     };
   }, []);
 
-  // auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleConnect = () => {
@@ -51,7 +50,7 @@ const Chat = () => {
     setPeerId('');
     setMessages([]);
 
-    // re-initialize (will reuse same ID)
+    // Re-init (reuses the same ID)
     WebRTCService.initialize();
     setMyId(localStorage.getItem('peerjs_id'));
   };
@@ -76,15 +75,17 @@ const Chat = () => {
         ) : (
           <>
             <div className="messages-container-ui">
-              {messages.map((msg, idx) => (
+              {messages.map((m, i) => (
                 <div
-                  key={idx}
-                  className={`message-ui ${msg.sender === 'me' ? 'sent-ui' : 'received-ui'}`}
+                  key={i}
+                  className={`message-ui ${
+                    m.sender === 'me' ? 'sent-ui' : 'received-ui'
+                  }`}
                 >
-                  {msg.text}
+                  {m.text}
                 </div>
               ))}
-              <div ref={messagesEndRef} />
+              <div ref={endRef} />
             </div>
 
             <form onSubmit={handleSendMessage} className="message-input-ui">
@@ -94,7 +95,9 @@ const Chat = () => {
                 onChange={e => setInputMessage(e.target.value)}
                 placeholder="Type your message here..."
               />
-              <button type="submit" className="send-btn-ui">➤</button>
+              <button type="submit" className="send-btn-ui">
+                ➤
+              </button>
             </form>
 
             <button className="end-session-btn-ui" onClick={handleEndSession}>

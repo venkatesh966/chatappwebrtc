@@ -8,22 +8,22 @@ class WebRTCService {
   }
 
   initialize() {
-    // 1) grab existing ID or create & persist a new one
+    // 1) Grab or create a persistent ID
     let userId = localStorage.getItem('peerjs_id');
     if (!userId) {
       userId = 'user_' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('peerjs_id', userId);
     }
 
-    // 2) instantiate Peer with that ID
+    // 2) Use the default PeerJS cloud server
     this.peer = new Peer(userId);
 
     this.peer.on('open', (id) => {
-      console.log('My peer ID is:', id);
+      console.log('🟢 Peer open. My ID:', id);
     });
 
     this.peer.on('connection', (conn) => {
-      this.handleConnection(conn);
+      this._handleConnection(conn);
     });
 
     this.peer.on('error', (err) => {
@@ -31,36 +31,34 @@ class WebRTCService {
     });
   }
 
-  handleConnection(conn) {
+  _handleConnection(conn) {
     conn.on('open', () => {
-      console.log('Connected to peer:', conn.peer);
+      console.log('➡️ Connected to', conn.peer);
       this.connections.set(conn.peer, conn);
     });
 
     conn.on('data', (data) => {
-      if (this.onMessageCallback) {
-        this.onMessageCallback(data);
-      }
+      if (this.onMessageCallback) this.onMessageCallback(data);
     });
 
     conn.on('close', () => {
-      console.log('Connection closed with peer:', conn.peer);
+      console.log('❌ Connection closed with', conn.peer);
       this.connections.delete(conn.peer);
     });
   }
 
   connectToPeer(peerId) {
     const conn = this.peer.connect(peerId);
-    this.handleConnection(conn);
+    this._handleConnection(conn);
     return conn;
   }
 
   sendMessage(peerId, message) {
     const conn = this.connections.get(peerId);
-    if (conn) {
+    if (conn && conn.open) {
       conn.send(message);
     } else {
-      console.error('No connection found for peer:', peerId);
+      console.error('No open connection to', peerId);
     }
   }
 
