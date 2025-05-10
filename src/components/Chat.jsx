@@ -674,7 +674,7 @@ const Chat = () => {
             {messages.length > 0 && (
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, position: 'relative', minHeight: 44 }}>
                 {/* Call Controls */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1, minWidth: 44, justifyContent: 'flex-start' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1, minWidth: 44, justifyContent: 'flex-start', height: '100%' }}>
                   {!isCallActive ? (
                     <Tooltip title="Start Call">
                       <IconButton
@@ -689,6 +689,9 @@ const Chat = () => {
                           ml: 0.5,
                           width: 32,
                           height: 32,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         <CallIcon sx={{ fontSize: 20 }} />
@@ -707,6 +710,9 @@ const Chat = () => {
                             boxShadow: 1,
                             width: 28,
                             height: 28,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
                         >
                           {isMuted ? <MicOffIcon sx={{ fontSize: 18 }} /> : <MicIcon sx={{ fontSize: 18 }} />}
@@ -724,6 +730,9 @@ const Chat = () => {
                             ml: 0.5,
                             width: 32,
                             height: 32,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
                         >
                           <CallEndIcon sx={{ fontSize: 20 }} />
@@ -732,8 +741,8 @@ const Chat = () => {
                     </>
                   )}
                 </Box>
-                <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
-                  <Typography sx={{ color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', height: '100%' }}>
+                  <Typography sx={{ color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', whiteSpace: 'nowrap' }}>
                     Today
                   </Typography>
                 </Box>
@@ -756,6 +765,8 @@ const Chat = () => {
                     boxShadow: 'none',
                     ml: 1,
                     mr: 0.5,
+                    display: 'flex',
+                    alignItems: 'center',
                     '&:hover': {
                       bgcolor: '#ffeaea',
                       borderColor: '#d32f2f',
