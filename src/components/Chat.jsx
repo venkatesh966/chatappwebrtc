@@ -21,6 +21,7 @@ const Chat = () => {
   const [peerId, setPeerId] = useState('');
   const [myId, setMyId] = useState('');
   const [disconnectReason, setDisconnectReason] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const endRef = useRef(null);
   const [error, setError] = useState('');
 
@@ -42,6 +43,7 @@ const Chat = () => {
             }]);
             setDisconnectReason(data.reason);
             setConnected(false);
+            setIsConnecting(false);
             break;
           default:
             console.warn('Unknown message type:', data.type);
@@ -80,13 +82,29 @@ const Chat = () => {
 
     try {
       setError('');
-      await WebRTCService.connectToPeer(id);
+      setIsConnecting(true);
+      
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout')), 10000); // 10 second timeout
+      });
+
+      // Race between connection and timeout
+      await Promise.race([
+        WebRTCService.connectToPeer(id),
+        timeoutPromise
+      ]);
+
       setConnected(true);
       setDisconnectReason(null);
     } catch (err) {
       setError('Failed to connect: ' + (err.message || 'Unknown error'));
       console.error('Connection error:', err);
+      // Force reinitialize the service on error
+      WebRTCService.disconnect();
       WebRTCService.initialize();
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -100,16 +118,20 @@ const Chat = () => {
   };
 
   const handleEndSession = () => {
+    setIsConnecting(false); // Ensure loading state is cleared
     WebRTCService.disconnect();
     setDisconnectReason('user_disconnect');
     setConnected(false);
+    // Clear messages after a short delay to allow disconnect message to be sent
     setTimeout(() => {
       setMessages([]);
     }, 1000);
   };
 
+  // Add cleanup on component unmount
   useEffect(() => {
     return () => {
+      setIsConnecting(false); // Ensure loading state is cleared
       WebRTCService.disconnect();
     };
   }, []);
@@ -197,10 +219,12 @@ const Chat = () => {
                 onChange={(e) => setPeerId(e.target.value)}
                 fullWidth
                 InputProps={{ style: { fontSize: 15, padding: 8 } }}
+                disabled={isConnecting}
               />
               <Button
                 variant="contained"
                 onClick={handleConnect}
+                disabled={isConnecting}
                 sx={{
                   minWidth: 90,
                   fontSize: 15,
@@ -209,10 +233,44 @@ const Chat = () => {
                   px: 2,
                   borderRadius: 2,
                   boxShadow: 1,
+                  position: 'relative',
                 }}
                 size="small"
               >
-                CONNECT
+                {isConnecting ? (
+                  <>
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          border: '2px solid #fff',
+                          borderTop: '2px solid transparent',
+                          borderRadius: '50%',
+                          animation: 'spin 1s linear infinite',
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' },
+                          },
+                        }}
+                      />
+                    </Box>
+                    <span style={{ opacity: 0 }}>CONNECT</span>
+                  </>
+                ) : (
+                  'CONNECT'
+                )}
               </Button>
             </Stack>
           </>
