@@ -120,7 +120,7 @@ const Chat = ({ boxWidth = 420 }) => {
         });
         
         setMessages((prev) => [...prev, {
-          text: `Receiving file: ${data.name}`,
+          text: `Received file: ${data.name}`,
           sender: 'system',
           isSystem: true,
           time: new Date()
