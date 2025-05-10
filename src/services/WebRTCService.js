@@ -6,6 +6,7 @@ class WebRTCService {
     this.connections = new Map();
     this.onMessageCallback = null;
     this.onPeerConnectedCallback = null;
+    this.onPeerDisconnectedCallback = null;
   }
 
   initialize() {
@@ -51,6 +52,9 @@ class WebRTCService {
     conn.on('close', () => {
       console.log('❌ Connection closed with', conn.peer);
       this.connections.delete(conn.peer);
+      if (this.onPeerDisconnectedCallback) {
+        this.onPeerDisconnectedCallback(conn.peer);
+      }
     });
   }
 
@@ -98,6 +102,10 @@ class WebRTCService {
 
   setOnPeerConnectedCallback(cb) {
     this.onPeerConnectedCallback = cb;
+  }
+
+  setOnPeerDisconnectedCallback(cb) {
+    this.onPeerDisconnectedCallback = cb;
   }
 
   disconnect() {
