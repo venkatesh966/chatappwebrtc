@@ -7,6 +7,10 @@ class WebRTCService {
     this.onMessageCallback = null;
     this.onPeerConnectedCallback = null;
     this.onFileProgressCallback = null;
+    this.onCallStatusCallback = null;
+    this.localStream = null;
+    this.call = null;
+    this.isMuted = false;
   }
 
   initialize() {
@@ -30,6 +34,12 @@ class WebRTCService {
 
     this.peer.on('error', (err) => {
       console.error('PeerJS error:', err);
+    });
+
+    this.peer.on('call', (call) => {
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('incoming', call);
+      }
     });
 
     // Add browser close event listener
@@ -279,6 +289,107 @@ class WebRTCService {
       this.connections.clear();
       this.peer = null; // Clear the peer instance
     }
+  }
+
+  // Audio Call Methods
+  async startCall(peerId) {
+    try {
+      // Request audio permissions and get local stream
+      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Create a call to the peer
+      this.call = this.peer.call(peerId, this.localStream);
+      
+      // Set up call event handlers
+      this.call.on('stream', (remoteStream) => {
+        // Handle incoming stream
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('active', remoteStream);
+        }
+      });
+
+      this.call.on('close', () => {
+        this.endCall();
+      });
+
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('connecting');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error starting call:', error);
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('error', null, error.message);
+      }
+      return false;
+    }
+  }
+
+  async answerCall(call) {
+    try {
+      this.call = call;
+      
+      // Request audio permissions and get local stream
+      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Answer the call with local stream
+      this.call.answer(this.localStream);
+      
+      // Set up call event handlers
+      this.call.on('stream', (remoteStream) => {
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('active', remoteStream);
+        }
+      });
+
+      this.call.on('close', () => {
+        this.endCall();
+      });
+
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('connecting');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error answering call:', error);
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('error', null, error.message);
+      }
+      return false;
+    }
+  }
+
+  endCall() {
+    if (this.call) {
+      this.call.close();
+      this.call = null;
+    }
+    
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream = null;
+    }
+
+    if (this.onCallStatusCallback) {
+      this.onCallStatusCallback('ended');
+    }
+  }
+
+  toggleMute() {
+    if (this.localStream) {
+      this.isMuted = !this.isMuted;
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = !this.isMuted;
+      });
+      return this.isMuted;
+    }
+    return false;
+  }
+
+  setOnCallStatusCallback(callback) {
+    this.onCallStatusCallback = callback;
   }
 }
 

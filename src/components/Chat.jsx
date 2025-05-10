@@ -19,6 +19,10 @@ import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import Tooltip from '@mui/material/Tooltip';
+import AudioCall from './AudioCall';
+import CallIcon from '@mui/icons-material/Call';
+import MicIcon from '@mui/icons-material/Mic';
+import MicOffIcon from '@mui/icons-material/MicOff';
 
 const Chat = () => {
   const [connected, setConnected] = useState(false);
@@ -36,6 +40,12 @@ const Chat = () => {
   const [receivedFiles, setReceivedFiles] = useState(new Map());
   const fileTimeouts = useRef(new Map());
   const fileInputRef = useRef(null);
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [callStatus, setCallStatus] = useState('idle');
+  const [isMuted, setIsMuted] = useState(false);
+  const [callDuration, setCallDuration] = useState('00:00');
+  const callTimerRef = useRef(null);
+  const callStartTimeRef = useRef(null);
 
   // For file receiving (outside useState, inside Chat component)
   let currentReceivingFile = null;
@@ -430,6 +440,82 @@ const Chat = () => {
     }
   };
 
+  useEffect(() => {
+    // Set up call status callback
+    WebRTCService.setOnCallStatusCallback((status, stream, error) => {
+      switch (status) {
+        case 'incoming':
+          // Handle incoming call
+          if (window.confirm('Incoming call. Accept?')) {
+            WebRTCService.answerCall(stream);
+          } else {
+            WebRTCService.endCall();
+          }
+          break;
+        case 'connecting':
+          setCallStatus('connecting');
+          break;
+        case 'active':
+          setIsCallActive(true);
+          setCallStatus('active');
+          startCallTimer();
+          break;
+        case 'ended':
+          setIsCallActive(false);
+          setCallStatus('ended');
+          stopCallTimer();
+          break;
+        case 'error':
+          console.error('Call error:', error);
+          setIsCallActive(false);
+          setCallStatus('error');
+          stopCallTimer();
+          break;
+      }
+    });
+
+    return () => {
+      WebRTCService.endCall();
+      stopCallTimer();
+    };
+  }, []);
+
+  const startCallTimer = () => {
+    callStartTimeRef.current = Date.now();
+    callTimerRef.current = setInterval(() => {
+      const duration = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+      const minutes = Math.floor(duration / 60).toString().padStart(2, '0');
+      const seconds = (duration % 60).toString().padStart(2, '0');
+      setCallDuration(`${minutes}:${seconds}`);
+    }, 1000);
+  };
+
+  const stopCallTimer = () => {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+    setCallDuration('00:00');
+  };
+
+  const handleStartCall = async () => {
+    if (peerId) {
+      const success = await WebRTCService.startCall(peerId);
+      if (!success) {
+        setError('Failed to start call');
+      }
+    }
+  };
+
+  const handleEndCall = () => {
+    WebRTCService.endCall();
+  };
+
+  const handleMuteToggle = () => {
+    const newMuteState = WebRTCService.toggleMute();
+    setIsMuted(newMuteState);
+  };
+
   return (
     <Box
       sx={{
@@ -586,11 +672,71 @@ const Chat = () => {
           <>
             {/* Date Divider and CLOSE button */}
             {messages.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, position: 'relative' }}>
-                <Box sx={{ flex: 1, height: 1, bgcolor: '#e0e0e0' }} />
-                <Typography sx={{ mx: 2, color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-                  Today
-                </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, position: 'relative', minHeight: 44 }}>
+                {/* Call Controls */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1, minWidth: 44, justifyContent: 'flex-start' }}>
+                  {!isCallActive ? (
+                    <Tooltip title="Start Call">
+                      <IconButton
+                        onClick={handleStartCall}
+                        disabled={isCallActive}
+                        size="small"
+                        sx={{
+                          bgcolor: '#43d672',
+                          color: '#fff',
+                          '&:hover': { bgcolor: '#2eb85c' },
+                          boxShadow: 2,
+                          ml: 0.5,
+                          width: 32,
+                          height: 32,
+                        }}
+                      >
+                        <CallIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <>
+                      <Tooltip title={isMuted ? 'Unmute' : 'Mute'}>
+                        <IconButton
+                          onClick={handleMuteToggle}
+                          size="small"
+                          sx={{
+                            bgcolor: '#f5f5f5',
+                            color: '#333',
+                            '&:hover': { bgcolor: '#e0e0e0' },
+                            boxShadow: 1,
+                            width: 28,
+                            height: 28,
+                          }}
+                        >
+                          {isMuted ? <MicOffIcon sx={{ fontSize: 18 }} /> : <MicIcon sx={{ fontSize: 18 }} />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="End Call">
+                        <IconButton
+                          onClick={handleEndCall}
+                          size="small"
+                          sx={{
+                            bgcolor: '#f44336',
+                            color: '#fff',
+                            '&:hover': { bgcolor: '#d32f2f' },
+                            boxShadow: 2,
+                            ml: 0.5,
+                            width: 32,
+                            height: 32,
+                          }}
+                        >
+                          <CallEndIcon sx={{ fontSize: 20 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                </Box>
+                <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                  <Typography sx={{ color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
+                    Today
+                  </Typography>
+                </Box>
                 <Button
                   variant="outlined"
                   color="error"
@@ -608,10 +754,8 @@ const Chat = () => {
                     minHeight: 24,
                     minWidth: 0,
                     boxShadow: 'none',
-                    position: 'absolute',
-                    right: 0,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
+                    ml: 1,
+                    mr: 0.5,
                     '&:hover': {
                       bgcolor: '#ffeaea',
                       borderColor: '#d32f2f',
@@ -799,6 +943,17 @@ const Chat = () => {
           </>
         )}
       </Box>
+
+      {/* Audio Call Component */}
+      <AudioCall
+        isCallActive={isCallActive}
+        onStartCall={handleStartCall}
+        onEndCall={handleEndCall}
+        onMuteToggle={handleMuteToggle}
+        isMuted={isMuted}
+        callStatus={callStatus}
+        callDuration={callDuration}
+      />
     </Box>
   );
 };
