@@ -24,7 +24,6 @@ import CallIcon from '@mui/icons-material/Call';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import { alpha } from '@mui/material/styles';
-import DiamondIcon from '@mui/icons-material/Diamond';
 
 const Chat = ({ boxWidth = 420 }) => {
   const [connected, setConnected] = useState(false);
@@ -605,7 +604,7 @@ const Chat = ({ boxWidth = 420 }) => {
             boxShadow: '0 2px 8px 0 rgba(60,60,60,0.06)',
           }}
         >
-          <DiamondIcon sx={{ fontSize: 24, color: 'inherit' }} />
+          <img src="/icon128.png" alt="Icon" style={{ width: 24, height: 24 }} />
         </Avatar>
         <Typography
           variant="h6"

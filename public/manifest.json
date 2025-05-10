@@ -1,18 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "VibeConnect",
+  "name": "Vibe Connect",
   "version": "1.0",
   "description": "Peer-to-peer chat and audio call app as a Chrome extension.",
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "VibeConnect"
+    "default_title": "Vibe Connect"
   },
   "permissions": [
     "tabs"
   ],
   "host_permissions": [
     "<all_urls>"
-  ]
+  ],
+  "icons": {
+    "128": "icon128.png"
+  }
 } 
