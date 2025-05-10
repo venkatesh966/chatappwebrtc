@@ -90,8 +90,8 @@ const Chat = () => {
               progress: progress
             });
             
-            // If all chunks received or this is the last chunk, create and download the file
-            if (file.receivedChunks === file.totalChunks || data.isLastChunk) {
+            // Only process the file when all chunks are received
+            if (file.receivedChunks === file.totalChunks) {
               try {
                 // Filter out any undefined chunks and create blob
                 const validChunks = file.chunks.filter(chunk => chunk !== undefined);
