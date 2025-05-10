@@ -6,6 +6,7 @@ class WebRTCService {
     this.connections = new Map();
     this.onMessageCallback = null;
     this.onPeerConnectedCallback = null;
+    this.onFileProgressCallback = null;
   }
 
   initialize() {
@@ -102,6 +103,69 @@ class WebRTCService {
 
   setOnPeerConnectedCallback(cb) {
     this.onPeerConnectedCallback = cb;
+  }
+
+  setOnFileProgressCallback(cb) {
+    this.onFileProgressCallback = cb;
+  }
+
+  async sendFile(peerId, file) {
+    const conn = this.connections.get(peerId);
+    if (!conn || !conn.open) {
+      console.error('No open connection to', peerId);
+      return;
+    }
+
+    try {
+      // Create a file reader
+      const reader = new FileReader();
+      
+      // Read file as ArrayBuffer
+      reader.onload = (e) => {
+        const buffer = e.target.result;
+        
+        // Split the file into chunks (1MB each)
+        const chunkSize = 1024 * 1024;
+        const chunks = Math.ceil(buffer.byteLength / chunkSize);
+        
+        // Send file metadata first
+        const metadata = {
+          type: 'file',
+          name: file.name,
+          size: file.size,
+          mimeType: file.type,
+          totalChunks: chunks
+        };
+        
+        conn.send(metadata);
+        
+        // Send chunks
+        for (let i = 0; i < chunks; i++) {
+          const start = i * chunkSize;
+          const end = Math.min(start + chunkSize, buffer.byteLength);
+          const chunk = buffer.slice(start, end);
+          
+          conn.send({
+            type: 'fileChunk',
+            chunk: chunk,
+            index: i
+          });
+          
+          // Report progress
+          if (this.onFileProgressCallback) {
+            this.onFileProgressCallback({
+              fileName: file.name,
+              progress: ((i + 1) / chunks) * 100
+            });
+          }
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error('Error sending file:', err);
+      throw err;
+    }
   }
 
   _handleBrowserClose() {

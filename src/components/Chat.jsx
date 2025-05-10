@@ -9,12 +9,15 @@ import {
   Stack,
   Alert,
   Avatar,
+  LinearProgress,
+  Paper,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CallEndIcon from '@mui/icons-material/CallEnd';
 import PersonIcon from '@mui/icons-material/Person';
 import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import Tooltip from '@mui/material/Tooltip';
 
 const Chat = () => {
@@ -28,6 +31,9 @@ const Chat = () => {
   const endRef = useRef(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [fileProgress, setFileProgress] = useState(null);
+  const [receivedFiles, setReceivedFiles] = useState(new Map());
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     WebRTCService.initialize();
@@ -38,6 +44,50 @@ const Chat = () => {
         switch (data.type) {
           case 'message':
             setMessages((prev) => [...prev, { text: data.content, sender: 'peer', time: new Date() }]);
+            break;
+          case 'file':
+            // Initialize file reception
+            setReceivedFiles(prev => new Map(prev).set(data.name, {
+              name: data.name,
+              size: data.size,
+              mimeType: data.mimeType,
+              chunks: new Array(data.totalChunks),
+              receivedChunks: 0
+            }));
+            break;
+          case 'fileChunk':
+            // Handle received file chunk
+            setReceivedFiles(prev => {
+              const newFiles = new Map(prev);
+              const file = newFiles.get(data.fileName);
+              if (file) {
+                file.chunks[data.index] = data.chunk;
+                file.receivedChunks++;
+                
+                // If all chunks received, create and download the file
+                if (file.receivedChunks === file.chunks.length) {
+                  const blob = new Blob(file.chunks, { type: file.mimeType });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = file.name;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  
+                  // Add file received message
+                  setMessages(prev => [...prev, {
+                    text: `Received file: ${file.name}`,
+                    sender: 'system',
+                    isSystem: true,
+                    time: new Date()
+                  }]);
+                  
+                  // Remove from received files
+                  newFiles.delete(file.name);
+                }
+              }
+              return newFiles;
+            });
             break;
           case 'disconnect':
             setMessages((prev) => [...prev, { 
@@ -55,6 +105,13 @@ const Chat = () => {
         }
       } else {
         setMessages((prev) => [...prev, { text: data, sender: 'peer', time: new Date() }]);
+      }
+    });
+
+    WebRTCService.setOnFileProgressCallback(({ fileName, progress }) => {
+      setFileProgress({ fileName, progress });
+      if (progress === 100) {
+        setTimeout(() => setFileProgress(null), 1000);
       }
     });
 
@@ -159,6 +216,23 @@ const Chat = () => {
     navigator.clipboard.writeText(myId);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  };
+
+  const handleFileSelect = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      await WebRTCService.sendFile(peerId, file);
+      setMessages(prev => [...prev, {
+        text: `Sending file: ${file.name}`,
+        sender: 'system',
+        isSystem: true,
+        time: new Date()
+      }]);
+    } catch (err) {
+      setError('Failed to send file: ' + err.message);
+    }
   };
 
   return (
@@ -325,6 +399,19 @@ const Chat = () => {
                 <Box sx={{ flex: 1, height: 1, bgcolor: '#e0e0e0' }} />
               </Box>
             )}
+            {/* File Progress */}
+            {fileProgress && (
+              <Paper sx={{ p: 2, mb: 2, bgcolor: '#e3f2fd' }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  Sending {fileProgress.fileName}
+                </Typography>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={fileProgress.progress} 
+                  sx={{ height: 8, borderRadius: 4 }}
+                />
+              </Paper>
+            )}
             <Box
               sx={{
                 minHeight: 180,
@@ -436,43 +523,48 @@ const Chat = () => {
               <div ref={endRef} />
             </Box>
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} style={{ width: '100%' }}>
-              <Stack direction="row" spacing={1.5} alignItems="center">
+            <Box
+              component="form"
+              onSubmit={handleSendMessage}
+              sx={{
+                mt: 'auto',
+                p: 2,
+                bgcolor: 'background.paper',
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <Stack direction="row" spacing={1}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleFileSelect}
+                />
+                <IconButton
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!connected}
+                  sx={{ color: 'primary.main' }}
+                >
+                  <AttachFileIcon />
+                </IconButton>
                 <TextField
-                  placeholder="Type your message..."
-                  variant="outlined"
-                  size="small"
+                  fullWidth
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  fullWidth
-                  InputProps={{
-                    style: {
-                      fontSize: 14,
-                      padding: '8px 12px',
-                      borderRadius: 12,
-                      background: '#fff',
-                      height: 36,
-                    },
-                  }}
+                  placeholder="Type a message..."
+                  disabled={!connected}
+                  size="small"
                 />
                 <IconButton
                   type="submit"
-                  color="primary"
-                  disabled={!inputMessage.trim()}
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText',
-                    width: 36,
-                    height: 36,
-                    borderRadius: 2,
-                    fontSize: 20,
-                    '&:hover': { bgcolor: 'primary.dark' },
-                  }}
+                  disabled={!connected || !inputMessage.trim()}
+                  sx={{ color: 'primary.main' }}
                 >
-                  <SendIcon fontSize="inherit" />
+                  <SendIcon />
                 </IconButton>
               </Stack>
-            </form>
+            </Box>
             <Button
               variant="outlined"
               color="error"
