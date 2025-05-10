@@ -16,31 +16,44 @@ const Chat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [peerId, setPeerId] = useState('');
   const [myId, setMyId] = useState('');
-  const endRef = useRef(null);
   const [error, setError] = useState('');
-  const [peerEmoji] = useState('🧑');
   const [peerDisconnected, setPeerDisconnected] = useState(false);
 
+  const endRef = useRef(null);
+
+  // refs to keep latest values for unload handler
+  const connectedRef = useRef(false);
+  const peerIdRef   = useRef('');
+
+  // Sync refs whenever state updates
+  useEffect(() => { connectedRef.current = connected; }, [connected]);
+  useEffect(() => { peerIdRef.current   = peerId;   }, [peerId]);
+
+  // 1) Initialize once
   useEffect(() => {
     WebRTCService.initialize();
-    setMyId(localStorage.getItem('peerjs_id'));
+
+    WebRTCService.ready
+      .then((id) => setMyId(id))
+      .catch((err) => setError('Init error: ' + err.message));
 
     WebRTCService.setOnMessageCallback((data) => {
       if (data === '__DISCONNECT__') {
         setPeerDisconnected(true);
         setConnected(false);
         setPeerId('');
-        return;
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { text: data, sender: 'peer', timestamp: new Date().toISOString() },
+        ]);
       }
-      setMessages((prev) => [
-        ...prev,
-        { text: data, sender: 'peer', timestamp: new Date().toISOString() }
-      ]);
     });
 
-    WebRTCService.setOnPeerConnectedCallback((peerId) => {
-      setPeerId(peerId);
+    WebRTCService.setOnPeerConnectedCallback((id) => {
+      setPeerId(id);
       setConnected(true);
+      setPeerDisconnected(false);
     });
 
     WebRTCService.setOnPeerDisconnectedCallback(() => {
@@ -49,40 +62,45 @@ const Chat = () => {
       setPeerId('');
     });
 
-    // Notify peer on browser/tab close
+    WebRTCService.setOnErrorCallback((err) => {
+      setError('Peer error: ' + err.message);
+    });
+
+    // unload notifier
     const handleBeforeUnload = () => {
-      if (connected && peerId) {
-        WebRTCService.sendMessage(peerId, '__DISCONNECT__');
+      if (connectedRef.current && peerIdRef.current) {
+        WebRTCService.sendMessage(peerIdRef.current, '__DISCONNECT__');
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
-      WebRTCService.disconnect();
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      WebRTCService.disconnect();
     };
-  }, [connected, peerId]);
+  }, []); // <-- only once
 
+  // auto-scroll
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // connect button
   const handleConnect = async () => {
-    const id = peerId.trim();
-    if (!id) {
+    if (!peerId.trim()) {
       setError('Please enter a peer ID');
       return;
     }
-
     try {
       setError('');
-      await WebRTCService.connectToPeer(id);
-      setConnected(true);
+      await WebRTCService.connectToPeer(peerId.trim());
+      // no need to manually setConnected — it's done in the callback
     } catch (err) {
-      setError('Failed to connect: ' + (err.message || 'Unknown error'));
+      setError('Failed to connect: ' + err.message);
     }
   };
 
+  // send chat
   const handleSendMessage = (text) => {
     if (!text.trim()) return;
     const timestamp = new Date().toISOString();
@@ -90,6 +108,7 @@ const Chat = () => {
     WebRTCService.sendMessage(peerId, text);
   };
 
+  // end session
   const handleEndSession = () => {
     if (peerId) {
       WebRTCService.sendMessage(peerId, '__DISCONNECT__');
@@ -100,7 +119,7 @@ const Chat = () => {
     setPeerDisconnected(false);
     WebRTCService.disconnect();
     WebRTCService.initialize();
-    setMyId(localStorage.getItem('peerjs_id'));
+    WebRTCService.ready.then((id) => setMyId(id));
   };
 
   return (
@@ -146,7 +165,7 @@ const Chat = () => {
             <Collapse in={connected}>
               <ChatMessages
                 messages={messages}
-                peerEmoji={peerEmoji}
+                peerEmoji="🧑"
                 endRef={endRef}
               />
             </Collapse>
