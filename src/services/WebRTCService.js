@@ -20,34 +20,35 @@ class WebRTCService {
   }
 
   initialize() {
-    // ◼️ PERSISTENT ID: load or create once
     let userId = localStorage.getItem('peerjs_id');
-    if (!userId) {
+    // Always try to use a unique ID for each tab
+    if (!userId || window.name === '' || window.name.startsWith('peerjs_tab_')) {
       userId = 'user_' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('peerjs_id', userId);
+      window.name = 'peerjs_tab_' + userId;
+    } else {
+      // If this is a new tab, force a new ID
+      if (!window.name.startsWith('peerjs_tab_')) {
+        userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        window.name = 'peerjs_tab_' + userId;
+      } else {
+        userId = window.name.replace('peerjs_tab_', '');
+      }
     }
-
     this.peer = new Peer(userId);
 
-    // ready promise
-    this.ready = new Promise((resolve, reject) => {
-      this.peer.once('open', id => {
-        console.log('🟢 Peer open. My ID:', id);
-        resolve(id);
-      });
-      this.peer.once('error', err => {
-        // ◼️ if that ID was already in use, pick a new one and retry
-        if (err.type === 'unavailable-id' || err.message?.includes('is taken')) {
-          console.warn(`PeerJS ID "${userId}" taken—generating a new one.`);
-          const newId = userId + '_' + Math.random().toString(36).substr(2, 5);
-          localStorage.setItem('peerjs_id', newId);
-          this.peer.destroy();
-          return this.initialize();  // retry with the new ID
-        }
-        console.error('PeerJS fatal error:', err);
-        reject(err);
-        if (this.onError) this.onError(err);
-      });
+    this.peer.on('open', (id) => {
+      localStorage.setItem('peerjs_id', id);
+      window.name = 'peerjs_tab_' + id;
+      console.log('🟢 Peer open. My ID:', id);
+    });
+
+    this.peer.on('connection', (conn) => {
+      this._handleConnection(conn);
+    });
+
+    this.peer.on('error', (err) => {
+      console.error('PeerJS error:', err);
     });
 
     // incoming connections
@@ -91,13 +92,14 @@ class WebRTCService {
 
   _handleConnection(conn) {
     conn.on('open', () => {
-      console.log('➡️ Connected to', conn.peer);
       this.connections.set(conn.peer, conn);
       this.alivePeers.set(conn.peer, Date.now());
-      if (this.onPeerConnectedCallback) this.onPeerConnectedCallback(conn.peer);
+      if (this.onPeerConnectedCallback) {
+        this.onPeerConnectedCallback(conn.peer);
+      }
     });
 
-    conn.on('data', data => {
+    conn.on('data', (data) => {
       if (data === '__PING__') {
         conn.send('__PONG__');
       } else if (data === '__PONG__') {
@@ -125,19 +127,31 @@ class WebRTCService {
       this.connections.get(peerId).close();
       this.connections.delete(peerId);
       this.alivePeers.delete(peerId);
-      if (this.onPeerDisconnectedCallback) this.onPeerDisconnectedCallback(peerId);
+      if (this.onPeerDisconnectedCallback) {
+        this.onPeerDisconnectedCallback(peerId);
+      }
     }
   }
 
-  async connectToPeer(peerId) {
-    await this.ready;
+  connectToPeer(peerId) {
     return new Promise((resolve, reject) => {
-      const conn = this.peer.connect(peerId);
-
-      conn.once('open', () => resolve(conn));
-      conn.once('error', err => reject(err));
-
-      this._handleConnection(conn);
+      try {
+        const conn = this.peer.connect(peerId);
+        if (!conn) {
+          reject(new Error('Could not create connection. Peer may be offline or unavailable.'));
+          return;
+        }
+        conn.on('open', () => {
+          this.connections.set(conn.peer, conn);
+          resolve(conn);
+        });
+        conn.on('error', (err) => {
+          reject(err);
+        });
+        this._handleConnection(conn);
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 
@@ -150,17 +164,30 @@ class WebRTCService {
     }
   }
 
-  setOnMessageCallback(cb)       { this.onMessageCallback = cb; }
-  setOnPeerConnectedCallback(cb) { this.onPeerConnectedCallback = cb; }
-  setOnPeerDisconnectedCallback(cb) { this.onPeerDisconnectedCallback = cb; }
-  setOnErrorCallback(cb)         { this.onError = cb; }
+  setOnMessageCallback(cb) {
+    this.onMessageCallback = cb;
+  }
+
+  setOnPeerConnectedCallback(cb) {
+    this.onPeerConnectedCallback = cb;
+  }
+
+  setOnPeerDisconnectedCallback(cb) {
+    this.onPeerDisconnectedCallback = cb;
+  }
+
+  setOnErrorCallback(cb) {
+    this.onError = cb;
+  }
 
   disconnect() {
     clearInterval(this.pingInterval);
     clearInterval(this.checkInterval);
-    if (this.peer) this.peer.destroy();
-    this.connections.clear();
-    this.alivePeers.clear();
+    if (this.peer) {
+      this.peer.destroy();
+      this.connections.clear();
+      this.alivePeers.clear();
+    }
   }
 }
 

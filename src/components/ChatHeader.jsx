@@ -1,5 +1,13 @@
 import { Box, Typography, Avatar } from '@mui/material';
 
+function formatUserId(id, minLength = 10) {
+  if (!id) return '';
+  if (id.length < minLength) {
+    return id.padEnd(minLength, '0');
+  }
+  return id;
+}
+
 const ChatHeader = ({ myId }) => (
   <Box
     sx={{
@@ -37,7 +45,7 @@ const ChatHeader = ({ myId }) => (
           lineHeight: 1.1,
         }}
       >
-        Your ID: <b style={{ color: '#fff' }}>{myId}</b>
+        Your ID: <b style={{ color: '#fff' }}>{formatUserId(myId)}</b>
       </Typography>
     </Box>
   </Box>
