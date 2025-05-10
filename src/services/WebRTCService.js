@@ -9,28 +9,32 @@ class WebRTCService {
     this.onPeerDisconnectedCallback = null;
     this.onError = null;
 
-    // For heartbeat:
+    // Heartbeat state
     this.alivePeers = new Map();
     this.pingInterval = null;
     this.checkInterval = null;
 
-    // Expose a promise that resolves on peer open:
+    // Promise that resolves when Peer is open
     this.ready = null;
   }
 
   initialize() {
-    // generate a fresh per-session ID
-    const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+    // ◼️ PERSISTENT ID: load or create once
+    let userId = localStorage.getItem('peerjs_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('peerjs_id', userId);
+    }
 
     this.peer = new Peer(userId);
 
-    // set up the ready promise
+    // ready promise
     this.ready = new Promise((resolve, reject) => {
-      this.peer.once('open', (id) => {
+      this.peer.once('open', id => {
         console.log('🟢 Peer open. My ID:', id);
         resolve(id);
       });
-      this.peer.once('error', (err) => {
+      this.peer.once('error', err => {
         console.error('PeerJS fatal error:', err);
         reject(err);
         if (this.onError) this.onError(err);
@@ -38,9 +42,9 @@ class WebRTCService {
     });
 
     // incoming connections
-    this.peer.on('connection', (conn) => this._handleConnection(conn));
+    this.peer.on('connection', conn => this._handleConnection(conn));
 
-    // lifecycle
+    // reconnect logic
     this.peer.on('disconnected', () => {
       console.warn('⚠️ Peer disconnected, reconnecting…');
       this.peer.reconnect();
@@ -51,19 +55,19 @@ class WebRTCService {
       this.alivePeers.clear();
     });
 
-    // start heartbeat
+    // start heartbeat ping/pong
     this._startHeartbeat();
   }
 
   _startHeartbeat() {
-    // every 5s send a PING to each peer
+    // ping every 5s
     this.pingInterval = setInterval(() => {
       for (const conn of this.connections.values()) {
         if (conn.open) conn.send('__PING__');
       }
     }, 5000);
 
-    // every 5s check for stale peers (>15s no PONG)
+    // check last pong, cleanup peers >15s stale
     this.checkInterval = setInterval(() => {
       const now = Date.now();
       for (const [peerId] of this.connections) {
@@ -80,12 +84,11 @@ class WebRTCService {
     conn.on('open', () => {
       console.log('➡️ Connected to', conn.peer);
       this.connections.set(conn.peer, conn);
-      // mark alive immediately
       this.alivePeers.set(conn.peer, Date.now());
       if (this.onPeerConnectedCallback) this.onPeerConnectedCallback(conn.peer);
     });
 
-    conn.on('data', (data) => {
+    conn.on('data', data => {
       if (data === '__PING__') {
         conn.send('__PONG__');
       } else if (data === '__PONG__') {
@@ -102,7 +105,7 @@ class WebRTCService {
       this._cleanupPeer(conn.peer);
     });
 
-    conn.on('error', (err) => {
+    conn.on('error', err => {
       console.error('Connection error:', err);
       if (this.onError) this.onError(err);
     });
@@ -122,12 +125,9 @@ class WebRTCService {
     return new Promise((resolve, reject) => {
       const conn = this.peer.connect(peerId);
 
-      conn.once('open', () => {
-        resolve(conn);
-      });
-      conn.once('error', (err) => reject(err));
+      conn.once('open', () => resolve(conn));
+      conn.once('error', err => reject(err));
 
-      // also handle data/close via the same handler
       this._handleConnection(conn);
     });
   }
