@@ -34,12 +34,21 @@ const Chat = () => {
   const [fileProgress, setFileProgress] = useState(null);
   const [receivingFileProgress, setReceivingFileProgress] = useState(null);
   const [receivedFiles, setReceivedFiles] = useState(new Map());
+  const fileTimeouts = useRef(new Map());
   const fileInputRef = useRef(null);
 
   // For file receiving (outside useState, inside Chat component)
   let currentReceivingFile = null;
   let currentReceivingChunks = [];
   let currentReceivingCount = 0;
+
+  // Cleanup function for file transfers
+  const cleanupFileTransfer = (fileId) => {
+    if (fileTimeouts.current.has(fileId)) {
+      clearTimeout(fileTimeouts.current.get(fileId));
+      fileTimeouts.current.delete(fileId);
+    }
+  };
 
   useEffect(() => {
     WebRTCService.initialize();
@@ -48,19 +57,52 @@ const Chat = () => {
     WebRTCService.setOnMessageCallback((data) => {
       // Handle file metadata
       if (typeof data === 'object' && data.type === 'file') {
-        setReceivedFiles(prev => new Map(prev).set(data.name, {
+        // Validate metadata
+        if (!data.name || !data.size || !data.mimeType || !data.totalChunks || !data.fileId) {
+          console.error('Invalid file metadata received:', data);
+          return;
+        }
+
+        // Check for duplicate file transfer
+        if (receivedFiles.has(data.fileId)) {
+          console.warn('Duplicate file transfer detected:', data.fileId);
+          return;
+        }
+
+        // Set timeout for file transfer (5 minutes)
+        const timeout = setTimeout(() => {
+          setMessages(prev => [...prev, {
+            text: `File transfer timeout: ${data.name}`,
+            sender: 'system',
+            isSystem: true,
+            time: new Date()
+          }]);
+          setReceivedFiles(prev => {
+            const newFiles = new Map(prev);
+            newFiles.delete(data.fileId);
+            return newFiles;
+          });
+          setReceivingFileProgress(null);
+        }, 5 * 60 * 1000);
+
+        fileTimeouts.current.set(data.fileId, timeout);
+
+        setReceivedFiles(prev => new Map(prev).set(data.fileId, {
           name: data.name,
           size: data.size,
           mimeType: data.mimeType,
           chunks: new Array(data.totalChunks),
           receivedChunks: 0,
           totalChunks: data.totalChunks,
-          chunkSize: data.chunkSize
+          chunkSize: data.chunkSize,
+          startTime: Date.now(),
+          lastChunkTime: Date.now()
         }));
         
         setReceivingFileProgress({
           fileName: data.name,
-          progress: 0
+          progress: 0,
+          fileId: data.fileId
         });
         
         setMessages((prev) => [...prev, {
@@ -74,11 +116,26 @@ const Chat = () => {
 
       // Handle file chunks
       if (typeof data === 'object' && data.type === 'fileChunk') {
+        // Validate chunk data
+        if (!data.fileId || typeof data.index !== 'number' || !data.chunk) {
+          console.error('Invalid chunk data received:', data);
+          return;
+        }
+
         setReceivedFiles(prev => {
           const newFiles = new Map(prev);
-          const file = newFiles.get(data.fileName);
+          const file = newFiles.get(data.fileId);
           
           if (file) {
+            // Update last chunk time
+            file.lastChunkTime = Date.now();
+
+            // Validate chunk index
+            if (data.index < 0 || data.index >= file.totalChunks) {
+              console.error('Invalid chunk index:', data.index);
+              return newFiles;
+            }
+
             // Store the chunk
             file.chunks[data.index] = data.chunk;
             file.receivedChunks++;
@@ -87,55 +144,111 @@ const Chat = () => {
             const progress = (file.receivedChunks / file.totalChunks) * 100;
             setReceivingFileProgress({
               fileName: file.name,
-              progress: progress
+              progress: progress,
+              fileId: data.fileId
             });
-            
-            // Only process the file when all chunks are received
-            if (file.receivedChunks === file.totalChunks) {
-              try {
-                // Filter out any undefined chunks and create blob
-                const validChunks = file.chunks.filter(chunk => chunk !== undefined);
-                if (validChunks.length !== file.totalChunks) {
-                  throw new Error('Some chunks are missing');
-                }
 
-                const blob = new Blob(validChunks, { type: file.mimeType });
-                
-                // Verify blob size matches original file size
-                if (blob.size !== file.size) {
-                  throw new Error('File size mismatch');
-                }
-
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = file.name;
-                a.click();
-                URL.revokeObjectURL(url);
-                
-                // Add file received message
+            // Check for timeout (30 seconds without new chunks)
+            if (fileTimeouts.current.has(data.fileId)) {
+              clearTimeout(fileTimeouts.current.get(data.fileId));
+              const timeout = setTimeout(() => {
                 setMessages(prev => [...prev, {
-                  text: `Received file: ${file.name}`,
+                  text: `File transfer timeout: ${file.name}`,
                   sender: 'system',
                   isSystem: true,
                   time: new Date()
                 }]);
-                
-                // Clear receiving progress
+                setReceivedFiles(prev => {
+                  const newFiles = new Map(prev);
+                  newFiles.delete(data.fileId);
+                  return newFiles;
+                });
                 setReceivingFileProgress(null);
-              } catch (err) {
-                console.error('Error creating file:', err);
-                setMessages(prev => [...prev, {
-                  text: `Error receiving file: ${file.name} - ${err.message}`,
-                  sender: 'system',
-                  isSystem: true,
-                  time: new Date()
-                }]);
-              }
-              
-              // Remove from received files
-              newFiles.delete(file.name);
+              }, 30000);
+              fileTimeouts.current.set(data.fileId, timeout);
             }
+          }
+          return newFiles;
+        });
+        return;
+      }
+
+      // Handle file completion
+      if (typeof data === 'object' && data.type === 'fileComplete') {
+        // Validate completion data
+        if (!data.fileId) {
+          console.error('Invalid file completion data:', data);
+          return;
+        }
+
+        setReceivedFiles(prev => {
+          const newFiles = new Map(prev);
+          const file = newFiles.get(data.fileId);
+          
+          if (file) {
+            try {
+              // Cleanup timeout
+              cleanupFileTransfer(data.fileId);
+
+              // Check if we have all chunks
+              const validChunks = file.chunks.filter(chunk => chunk !== undefined);
+              if (validChunks.length !== file.totalChunks) {
+                const missingChunks = file.totalChunks - validChunks.length;
+                throw new Error(`Missing ${missingChunks} chunks out of ${file.totalChunks}`);
+              }
+
+              // Verify chunk order
+              for (let i = 0; i < file.chunks.length; i++) {
+                if (file.chunks[i] === undefined) {
+                  throw new Error(`Missing chunk at index ${i}`);
+                }
+              }
+
+              const blob = new Blob(validChunks, { type: file.mimeType });
+              
+              // Verify blob size matches original file size
+              if (blob.size !== file.size) {
+                throw new Error(`File size mismatch: received ${blob.size} bytes, expected ${file.size} bytes`);
+              }
+
+              // Verify MIME type
+              if (!blob.type.startsWith(file.mimeType.split('/')[0])) {
+                throw new Error(`File type mismatch: received ${blob.type}, expected ${file.mimeType}`);
+              }
+
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = file.name;
+              a.click();
+              URL.revokeObjectURL(url);
+              
+              // Calculate transfer time and speed
+              const transferTime = ((Date.now() - file.startTime) / 1000).toFixed(1);
+              const speed = (file.size / (1024 * 1024) / (transferTime / 60)).toFixed(2); // MB/min
+              
+              // Add file received message
+              setMessages(prev => [...prev, {
+                text: `Received file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB in ${transferTime}s, ${speed}MB/min)`,
+                sender: 'system',
+                isSystem: true,
+                time: new Date()
+              }]);
+              
+              // Clear receiving progress
+              setReceivingFileProgress(null);
+            } catch (err) {
+              console.error('Error creating file:', err);
+              setMessages(prev => [...prev, {
+                text: `Error receiving file: ${file.name} - ${err.message}`,
+                sender: 'system',
+                isSystem: true,
+                time: new Date()
+              }]);
+            }
+            
+            // Remove from received files
+            newFiles.delete(data.fileId);
           }
           return newFiles;
         });
@@ -149,6 +262,12 @@ const Chat = () => {
             setMessages((prev) => [...prev, { text: data.content, sender: 'peer', time: new Date() }]);
             break;
           case 'disconnect':
+            // Cleanup all file transfers
+            fileTimeouts.current.forEach((timeout, fileId) => {
+              clearTimeout(timeout);
+            });
+            fileTimeouts.current.clear();
+
             setMessages((prev) => [...prev, { 
               text: data.message, 
               sender: 'system',
@@ -186,7 +305,10 @@ const Chat = () => {
       }]);
     });
 
+    // Cleanup on unmount
     return () => {
+      fileTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+      fileTimeouts.current.clear();
       WebRTCService.disconnect();
     };
   }, []);
