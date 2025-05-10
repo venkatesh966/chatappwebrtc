@@ -42,7 +42,10 @@ class WebRTCService {
     });
 
     conn.on('data', (data) => {
-      if (this.onMessageCallback) this.onMessageCallback(data);
+      if (data === '__DISCONNECT__') {
+        console.log('❌ Peer disconnected');
+        this.connections.delete(conn.peer);
+      } else if (this.onMessageCallback) this.onMessageCallback(data);
     });
 
     conn.on('close', () => {

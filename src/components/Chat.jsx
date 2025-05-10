@@ -36,8 +36,17 @@ const Chat = () => {
       setConnected(true);
     });
 
+    // Notify peer on browser/tab close
+    const handleBeforeUnload = () => {
+      if (connected && peerId) {
+        WebRTCService.sendMessage(peerId, '__DISCONNECT__');
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       WebRTCService.disconnect();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 
