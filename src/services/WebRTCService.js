@@ -78,7 +78,11 @@ class WebRTCService {
   sendMessage(peerId, message) {
     const conn = this.connections.get(peerId);
     if (conn && conn.open) {
-      conn.send(message);
+      // If message is a string, wrap it in an object with type 'message'
+      const messageObj = typeof message === 'string' 
+        ? { type: 'message', content: message }
+        : message;
+      conn.send(messageObj);
     } else {
       console.error('No open connection to', peerId);
     }
@@ -93,6 +97,13 @@ class WebRTCService {
   }
 
   disconnect() {
+    // Notify all connected peers before disconnecting
+    this.connections.forEach((conn, peerId) => {
+      if (conn && conn.open) {
+        conn.send({ type: 'disconnect', message: 'Peer has ended the session' });
+      }
+    });
+
     if (this.peer) {
       this.peer.destroy();
       this.connections.clear();

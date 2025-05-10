@@ -28,12 +28,36 @@ const Chat = () => {
     setMyId(localStorage.getItem('peerjs_id'));
 
     WebRTCService.setOnMessageCallback((data) => {
-      setMessages((prev) => [...prev, { text: data, sender: 'peer' }]);
+      if (typeof data === 'object') {
+        switch (data.type) {
+          case 'message':
+            setMessages((prev) => [...prev, { text: data.content, sender: 'peer' }]);
+            break;
+          case 'disconnect':
+            setMessages((prev) => [...prev, { 
+              text: data.message, 
+              sender: 'system',
+              isSystem: true 
+            }]);
+            setConnected(false);
+            setPeerId('');
+            break;
+          default:
+            console.warn('Unknown message type:', data.type);
+        }
+      } else {
+        setMessages((prev) => [...prev, { text: data, sender: 'peer' }]);
+      }
     });
 
     WebRTCService.setOnPeerConnectedCallback((peerId) => {
       setPeerId(peerId);
       setConnected(true);
+      setMessages((prev) => [...prev, { 
+        text: 'Connected to peer!', 
+        sender: 'system',
+        isSystem: true 
+      }]);
     });
 
     return () => {
@@ -199,19 +223,20 @@ const Chat = () => {
                   key={i}
                   sx={{
                     display: 'flex',
-                    justifyContent:
-                      m.sender === 'me' ? 'flex-end' : 'flex-start',
+                    justifyContent: m.sender === 'me' ? 'flex-end' : 'flex-start',
                     mb: 1,
                   }}
                 >
                   <Box
                     sx={{
-                      bgcolor:
-                        m.sender === 'me'
+                      bgcolor: m.isSystem 
+                        ? 'warning.light'
+                        : m.sender === 'me'
                           ? 'primary.main'
                           : 'grey.200',
-                      color:
-                        m.sender === 'me'
+                      color: m.isSystem 
+                        ? 'warning.contrastText'
+                        : m.sender === 'me'
                           ? 'primary.contrastText'
                           : 'text.primary',
                       px: 2,
@@ -220,6 +245,7 @@ const Chat = () => {
                       maxWidth: '75%',
                       fontSize: 15,
                       wordBreak: 'break-word',
+                      fontStyle: m.isSystem ? 'italic' : 'normal',
                     }}
                   >
                     {m.text}
