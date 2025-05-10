@@ -530,12 +530,25 @@ const Chat = ({ boxWidth = 420 }) => {
       const success = await WebRTCService.startCall(peerId);
       if (!success) {
         setError('Failed to start call');
+      } else {
+        setMessages((prev) => [...prev, {
+          text: `Call started at ${formatTime(new Date())}`,
+          sender: 'system',
+          isSystem: true,
+          time: new Date()
+        }]);
       }
     }
   };
 
   const handleEndCall = () => {
     WebRTCService.endCall();
+    setMessages((prev) => [...prev, {
+      text: `Call ended at ${formatTime(new Date())}`,
+      sender: 'system',
+      isSystem: true,
+      time: new Date()
+    }]);
   };
 
   const handleMuteToggle = () => {
@@ -558,7 +571,7 @@ const Chat = ({ boxWidth = 420 }) => {
         alignItems: 'stretch',
         justifyContent: 'flex-start',
         boxShadow: '0 4px 24px 0 rgba(31, 38, 135, 0.10)',
-        background: (theme) => `linear-gradient(120deg, ${alpha(theme.palette.background.paper, 0.97)} 70%, ${alpha('#e0f7fa', 0.8)} 100%)`,
+        background: `linear-gradient(120deg, ${alpha('#fff', 0.97)} 70%, ${alpha('#e0f7fa', 0.8)} 100%)`,
         backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255,255,255,0.18)',
         overflow: 'hidden',
@@ -619,6 +632,7 @@ const Chat = ({ boxWidth = 420 }) => {
             </IconButton>
           </Tooltip>
         </Typography>
+        <Box sx={{ flex: 1 }} />
       </Box>
       {/* Chat Area */}
       <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fafbfc', pb: 0 }}>
@@ -834,6 +848,7 @@ const Chat = ({ boxWidth = 420 }) => {
                 m.isSystem ? (
                   <Box
                     key={i}
+                    className="message-bubble-anim"
                     sx={{
                       display: 'flex',
                       justifyContent: 'center',
@@ -851,6 +866,7 @@ const Chat = ({ boxWidth = 420 }) => {
                         fontSize: 12,
                         wordBreak: 'break-word',
                         fontStyle: 'italic',
+                        transition: 'all 0.3s',
                       }}
                     >
                       {m.text}
@@ -859,6 +875,7 @@ const Chat = ({ boxWidth = 420 }) => {
                 ) : (
                   <Box
                     key={i}
+                    className="message-bubble-anim"
                     sx={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -879,6 +896,19 @@ const Chat = ({ boxWidth = 420 }) => {
                         You
                       </Box>
                     )}
+                    {m.sender === 'peer' && (
+                      <Box
+                        sx={{
+                          fontSize: 9,
+                          color: '#888',
+                          fontWeight: 700,
+                          mb: 0.1,
+                          ml: 1,
+                        }}
+                      >
+                        Peer
+                      </Box>
+                    )}
                     <Box
                       sx={{
                         bgcolor: m.sender === 'me' ? '#4f8cff' : '#f5f5f5',
@@ -892,6 +922,7 @@ const Chat = ({ boxWidth = 420 }) => {
                         display: 'inline-block',
                         maxWidth: 260,
                         wordBreak: 'break-word',
+                        transition: 'all 0.3s',
                       }}
                     >
                       {m.text}
@@ -992,5 +1023,26 @@ const Chat = ({ boxWidth = 420 }) => {
     </Paper>
   );
 };
+
+const style = document.createElement('style');
+style.innerHTML = `
+  .message-bubble-anim {
+    animation: fadeSlideIn 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @keyframes fadeSlideIn {
+    0% {
+      opacity: 0;
+      transform: translateY(18px) scale(0.98);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-chat-anim]')) {
+  style.setAttribute('data-chat-anim', 'true');
+  document.head.appendChild(style);
+}
 
 export default Chat;
