@@ -20,6 +20,7 @@ const Chat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [peerId, setPeerId] = useState('');
   const [myId, setMyId] = useState('');
+  const [disconnectReason, setDisconnectReason] = useState(null);
   const endRef = useRef(null);
   const [error, setError] = useState('');
 
@@ -39,8 +40,8 @@ const Chat = () => {
               sender: 'system',
               isSystem: true 
             }]);
+            setDisconnectReason(data.reason);
             setConnected(false);
-            setPeerId('');
             break;
           default:
             console.warn('Unknown message type:', data.type);
@@ -53,6 +54,7 @@ const Chat = () => {
     WebRTCService.setOnPeerConnectedCallback((peerId) => {
       setPeerId(peerId);
       setConnected(true);
+      setDisconnectReason(null);
       setMessages((prev) => [...prev, { 
         text: 'Connected to peer!', 
         sender: 'system',
@@ -97,11 +99,8 @@ const Chat = () => {
 
   const handleEndSession = () => {
     WebRTCService.disconnect();
+    setDisconnectReason('user_disconnect');
     setConnected(false);
-    setPeerId('');
-    setMessages([]);
-    WebRTCService.initialize();
-    setMyId(localStorage.getItem('peerjs_id'));
   };
 
   return (
@@ -167,33 +166,45 @@ const Chat = () => {
         )}
 
         {!connected ? (
-          <Stack direction="row" spacing={1} mb={2} mt={6}>
-            <TextField
-              placeholder="Enter peer ID"
-              variant="outlined"
-              size="small"
-              value={peerId}
-              onChange={(e) => setPeerId(e.target.value)}
-              fullWidth
-              InputProps={{ style: { fontSize: 15, padding: 8 } }}
-            />
-            <Button
-              variant="contained"
-              onClick={handleConnect}
-              sx={{
-                minWidth: 90,
-                fontSize: 15,
-                fontWeight: 600,
-                py: 1,
-                px: 2,
-                borderRadius: 2,
-                boxShadow: 1,
-              }}
-              size="small"
-            >
-              CONNECT
-            </Button>
-          </Stack>
+          <>
+            {disconnectReason && (
+              <Alert 
+                severity={disconnectReason === 'browser_close' ? 'warning' : 'info'} 
+                sx={{ mb: 2 }}
+              >
+                {disconnectReason === 'browser_close' 
+                  ? 'Connection was lost unexpectedly'
+                  : 'Session has been ended'}
+              </Alert>
+            )}
+            <Stack direction="row" spacing={1} mb={2} mt={6}>
+              <TextField
+                placeholder="Enter peer ID"
+                variant="outlined"
+                size="small"
+                value={peerId}
+                onChange={(e) => setPeerId(e.target.value)}
+                fullWidth
+                InputProps={{ style: { fontSize: 15, padding: 8 } }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleConnect}
+                sx={{
+                  minWidth: 90,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  py: 1,
+                  px: 2,
+                  borderRadius: 2,
+                  boxShadow: 1,
+                }}
+                size="small"
+              >
+                CONNECT
+              </Button>
+            </Stack>
+          </>
         ) : (
           <>
             <Box

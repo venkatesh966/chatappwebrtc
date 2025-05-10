@@ -30,6 +30,9 @@ class WebRTCService {
     this.peer.on('error', (err) => {
       console.error('PeerJS error:', err);
     });
+
+    // Add browser close event listener
+    window.addEventListener('beforeunload', this._handleBrowserClose.bind(this));
   }
 
   _handleConnection(conn) {
@@ -96,13 +99,33 @@ class WebRTCService {
     this.onPeerConnectedCallback = cb;
   }
 
+  _handleBrowserClose() {
+    // Notify all connected peers before browser closes
+    this.connections.forEach((conn, peerId) => {
+      if (conn && conn.open) {
+        conn.send({ 
+          type: 'disconnect', 
+          message: 'Peer has disconnected unexpectedly',
+          reason: 'browser_close'
+        });
+      }
+    });
+  }
+
   disconnect() {
     // Notify all connected peers before disconnecting
     this.connections.forEach((conn, peerId) => {
       if (conn && conn.open) {
-        conn.send({ type: 'disconnect', message: 'Peer has ended the session' });
+        conn.send({ 
+          type: 'disconnect', 
+          message: 'Peer has ended the session',
+          reason: 'user_disconnect'
+        });
       }
     });
+
+    // Remove browser close event listener
+    window.removeEventListener('beforeunload', this._handleBrowserClose.bind(this));
 
     if (this.peer) {
       this.peer.destroy();
