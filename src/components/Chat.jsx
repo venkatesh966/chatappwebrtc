@@ -23,8 +23,10 @@ import AudioCall from './AudioCall';
 import CallIcon from '@mui/icons-material/Call';
 import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
+import { alpha } from '@mui/material/styles';
+import DiamondIcon from '@mui/icons-material/Diamond';
 
-const Chat = () => {
+const Chat = ({ boxWidth = 420 }) => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -47,6 +49,7 @@ const Chat = () => {
   const callTimerRef = useRef(null);
   const callStartTimeRef = useRef(null);
   const audioRef = useRef(null);
+  const lastSentFileNameRef = useRef(null);
 
   // For file receiving (outside useState, inside Chat component)
   let currentReceivingFile = null;
@@ -300,7 +303,18 @@ const Chat = () => {
     WebRTCService.setOnFileProgressCallback(({ fileName, progress }) => {
       setFileProgress({ fileName, progress });
       if (progress === 100) {
-        setTimeout(() => setFileProgress(null), 1000);
+        setTimeout(() => {
+          setFileProgress(null);
+          if (lastSentFileNameRef.current) {
+            setMessages(prev => [...prev, {
+              text: lastSentFileNameRef.current ? `File sent: ${lastSentFileNameRef.current}` : 'File sent',
+              sender: 'system',
+              isSystem: true,
+              time: new Date()
+            }]);
+            lastSentFileNameRef.current = null;
+          }
+        }, 1000);
       }
     });
 
@@ -380,6 +394,9 @@ const Chat = () => {
     // Clear messages after a short delay to allow disconnect message to be sent
     setTimeout(() => {
       setMessages([]);
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     }, 1000);
   };
 
@@ -416,12 +433,7 @@ const Chat = () => {
 
     try {
       await WebRTCService.sendFile(peerId, file);
-      setMessages(prev => [...prev, {
-        text: `Sending file: ${file.name}`,
-        sender: 'system',
-        isSystem: true,
-        time: new Date()
-      }]);
+      lastSentFileNameRef.current = file.name;
     } catch (err) {
       let errorMessage = 'Failed to send file: ';
       if (err.message.includes('exceeds limit')) {
@@ -530,66 +542,76 @@ const Chat = () => {
   };
 
   return (
-    <Box
+    <Paper
+      elevation={8}
       sx={{
-        maxWidth: 500,
-        minWidth: 340,
-        minHeight: 520,
+        width: { xs: '98vw', sm: boxWidth, md: boxWidth },
+        minHeight: { xs: '80vh', sm: 480, md: 520 },
+        maxHeight: { xs: '98vh', sm: 600, md: 650 },
         mx: 'auto',
-        mt: 10,
         borderRadius: 4,
-        boxShadow: 8,
-        bgcolor: 'background.paper',
-        overflow: 'hidden',
+        p: { xs: 0.5, sm: 1.5, md: 2 },
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'stretch',
+        justifyContent: 'flex-start',
+        boxShadow: '0 4px 24px 0 rgba(31, 38, 135, 0.10)',
+        background: (theme) => `linear-gradient(120deg, ${alpha(theme.palette.background.paper, 0.97)} 70%, ${alpha('#e0f7fa', 0.8)} 100%)`,
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.18)',
+        overflow: 'hidden',
       }}
     >
       {/* Header */}
       <Box
         sx={{
           background: 'linear-gradient(90deg, #4f8cff 0%, #3ff57a 100%)',
-          py: 1.5,
-          px: 3,
+          py: 1,
+          px: 2,
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
-          borderBottomLeftRadius: 32,
-          borderBottomRightRadius: 32,
+          gap: 1.5,
+          borderBottomLeftRadius: 18,
+          borderBottomRightRadius: 18,
+          minHeight: 56,
         }}
       >
         <Avatar
           sx={{
             bgcolor: 'white',
-            color: '#fbc02d',
-            width: 44,
-            height: 44,
-            fontSize: 28,
-            border: '2px solid #3b6be0',
+            color: '#7c4dff',
+            width: 36,
+            height: 36,
+            fontSize: 24,
+            border: '1.5px solid #3b6be0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px 0 rgba(60,60,60,0.06)',
           }}
         >
-          <span role="img" aria-label="emoji">😃</span>
+          <DiamondIcon sx={{ fontSize: 24, color: 'inherit' }} />
         </Avatar>
         <Typography
           variant="h6"
           sx={{
             color: '#fff',
             fontWeight: 700,
-            fontSize: 20,
+            fontSize: 17,
             userSelect: 'all',
-            letterSpacing: 0.5,
-            ml: 1,
+            letterSpacing: 0.3,
+            ml: 0.5,
             display: 'flex',
             alignItems: 'center',
-            gap: 1,
+            gap: 0.5,
           }}
         >
-          Your ID: <b style={{ color: '#fff', marginLeft: 6 }}>{myId}</b>
+          Your ID: <b style={{ color: '#fff', marginLeft: 4, fontWeight: 600 }}>{myId}</b>
           <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top" arrow>
             <IconButton
               size="small"
               onClick={handleCopyId}
-              sx={{ ml: 1, color: '#fff', bgcolor: 'rgba(0,0,0,0.08)', '&:hover': { bgcolor: 'rgba(0,0,0,0.18)' } }}
+              sx={{ ml: 0.5, color: '#fff', bgcolor: 'rgba(0,0,0,0.08)', '&:hover': { bgcolor: 'rgba(0,0,0,0.18)' }, p: 0.5 }}
             >
               <ContentCopyIcon fontSize="small" />
             </IconButton>
@@ -599,21 +621,36 @@ const Chat = () => {
       {/* Chat Area */}
       <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fafbfc', pb: 0 }}>
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+          <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>
         )}
         {!connected ? (
           <>
             {disconnectReason && (
               <Alert 
                 severity={disconnectReason === 'browser_close' ? 'warning' : 'info'} 
-                sx={{ mb: 2 }}
+                sx={{ mb: 1 }}
               >
                 {disconnectReason === 'browser_close' 
                   ? 'Connection was lost unexpectedly'
                   : 'Session has been ended'}
               </Alert>
             )}
-            <Stack direction="row" spacing={2} mb={2} mt={6} alignItems="center" justifyContent="center">
+            <Paper elevation={4} sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1.5,
+              p: 2,
+              mb: 2,
+              mt: 4,
+              borderRadius: 3,
+              boxShadow: '0 4px 24px 0 rgba(31, 38, 135, 0.10)',
+              border: '2px solid #4f8cff',
+              background: 'linear-gradient(120deg, #f8fbff 70%, #e0f7fa 100%)',
+              minWidth: 320,
+              maxWidth: 400,
+              mx: 'auto',
+            }}>
               <TextField
                 placeholder="Enter peer ID"
                 variant="outlined"
@@ -623,20 +660,21 @@ const Chat = () => {
                 fullWidth
                 InputProps={{
                   style: {
-                    fontSize: 14,
+                    fontSize: 15,
                     padding: '6px 10px',
-                    borderRadius: 12,
-                    height: 36,
+                    borderRadius: 10,
+                    height: 38,
                     background: '#fff',
                   },
                 }}
                 disabled={isConnecting}
                 sx={{
-                  maxWidth: 260,
-                  minWidth: 180,
+                  maxWidth: 180,
+                  minWidth: 120,
                   bgcolor: '#fff',
                   borderRadius: 2,
                   boxShadow: 0,
+                  mr: 1.5,
                 }}
               />
               <Button
@@ -644,21 +682,23 @@ const Chat = () => {
                 onClick={handleConnect}
                 disabled={isConnecting}
                 sx={{
-                  minWidth: 80,
-                  height: 36,
+                  minWidth: 90,
+                  height: 38,
                   borderRadius: 2,
-                  fontWeight: 600,
-                  fontSize: 14,
+                  fontWeight: 700,
+                  fontSize: 15,
                   bgcolor: '#4f8cff',
                   color: '#fff',
                   boxShadow: 2,
-                  '&:hover': { bgcolor: '#3b6be0' },
+                  letterSpacing: 1,
+                  transition: 'all 0.2s',
+                  '&:hover': { bgcolor: '#3b6be0', transform: 'translateY(-2px) scale(1.04)' },
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   px: 2,
                 }}
-                size="small"
+                size="medium"
               >
                 {isConnecting ? (
                   <Box
@@ -679,15 +719,15 @@ const Chat = () => {
                   'CONNECT'
                 )}
               </Button>
-            </Stack>
+            </Paper>
           </>
         ) : (
           <>
             {/* Date Divider and CLOSE button */}
             {messages.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, position: 'relative', minHeight: 44 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, position: 'relative', minHeight: 36 }}>
                 {/* Call Controls */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 1, minWidth: 44, justifyContent: 'flex-start', height: '100%' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mr: 0.5, minWidth: 32, justifyContent: 'flex-start', height: '100%' }}>
                   {!isCallActive ? (
                     <Tooltip title="Start Call">
                       <IconButton
@@ -698,65 +738,24 @@ const Chat = () => {
                           bgcolor: '#43d672',
                           color: '#fff',
                           '&:hover': { bgcolor: '#2eb85c' },
-                          boxShadow: 2,
-                          ml: 0.5,
-                          width: 32,
-                          height: 32,
+                          boxShadow: 1,
+                          ml: 0.2,
+                          width: 26,
+                          height: 26,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          p: 0.5,
                         }}
                       >
-                        <CallIcon sx={{ fontSize: 20 }} />
+                        <CallIcon sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Tooltip>
-                  ) : (
-                    <>
-                      <Tooltip title={isMuted ? 'Unmute' : 'Mute'}>
-                        <IconButton
-                          onClick={handleMuteToggle}
-                          size="small"
-                          sx={{
-                            bgcolor: '#f5f5f5',
-                            color: '#333',
-                            '&:hover': { bgcolor: '#e0e0e0' },
-                            boxShadow: 1,
-                            width: 28,
-                            height: 28,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {isMuted ? <MicOffIcon sx={{ fontSize: 18 }} /> : <MicIcon sx={{ fontSize: 18 }} />}
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="End Call">
-                        <IconButton
-                          onClick={handleEndCall}
-                          size="small"
-                          sx={{
-                            bgcolor: '#f44336',
-                            color: '#fff',
-                            '&:hover': { bgcolor: '#d32f2f' },
-                            boxShadow: 2,
-                            ml: 0.5,
-                            width: 32,
-                            height: 32,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <CallEndIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  )}
+                  ) : null}
                 </Box>
                 <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', height: '100%' }}>
-                  <Typography sx={{ color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', whiteSpace: 'nowrap' }}>
-                    Today
+                  <Typography sx={{ color: '#888', fontWeight: 500, fontSize: 12, position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', whiteSpace: 'nowrap' }}>
+                    {`Today (${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })})`}
                   </Typography>
                 </Box>
                 <Button
@@ -764,20 +763,20 @@ const Chat = () => {
                   color="error"
                   onClick={handleEndSession}
                   sx={{
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: 600,
-                    py: 0.3,
-                    px: 1.5,
-                    borderRadius: 2,
-                    border: '1.5px solid #f44336',
+                    py: 0.2,
+                    px: 1,
+                    borderRadius: 1.5,
+                    border: '1px solid #f44336',
                     color: '#f44336',
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.3,
                     background: '#fff',
-                    minHeight: 24,
+                    minHeight: 20,
                     minWidth: 0,
                     boxShadow: 'none',
-                    ml: 1,
-                    mr: 0.5,
+                    ml: 0.5,
+                    mr: 0.2,
                     display: 'flex',
                     alignItems: 'center',
                     '&:hover': {
@@ -792,39 +791,39 @@ const Chat = () => {
             )}
             {/* File Progress */}
             {(fileProgress || receivingFileProgress) && (
-              <Paper sx={{ p: 2, mb: 2, bgcolor: '#e3f2fd' }}>
-                <Typography variant="body2" sx={{ mb: 1 }}>
+              <Paper sx={{ p: 1, mb: 1, bgcolor: '#e3f2fd', borderRadius: 2 }}>
+                <Typography variant="body2" sx={{ mb: 0.5, fontSize: 12 }}>
                   {fileProgress ? 'Sending' : 'Receiving'} {fileProgress?.fileName || receivingFileProgress?.fileName}
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
                   value={fileProgress?.progress || receivingFileProgress?.progress} 
-                  sx={{ height: 8, borderRadius: 4 }}
+                  sx={{ height: 6, borderRadius: 2 }}
                 />
               </Paper>
             )}
             <Box
               sx={{
-                minHeight: 260,
-                maxHeight: 340,
+                minHeight: 180,
+                maxHeight: 260,
                 overflowY: 'auto',
-                mb: 2,
+                mb: 1,
                 bgcolor: 'white',
-                borderRadius: 2,
-                p: 1,
+                borderRadius: 1.5,
+                p: 0.5,
                 border: '1px solid #e3e8f0',
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                fontSize: 14,
-                boxShadow: '0 2px 8px 0 rgba(60,60,60,0.04)',
+                fontSize: 13,
+                boxShadow: '0 1px 4px 0 rgba(60,60,60,0.03)',
               }}
             >
               {messages.length === 0 && (
                 <Typography
                   variant="body2"
                   color="text.secondary"
-                  sx={{ textAlign: 'center', mt: 4, opacity: 0.7 }}
+                  sx={{ textAlign: 'center', mt: 2, opacity: 0.7, fontSize: 13 }}
                 >
                   Say hello to your peer!
                 </Typography>
@@ -836,18 +835,18 @@ const Chat = () => {
                     sx={{
                       display: 'flex',
                       justifyContent: 'center',
-                      mb: 1,
+                      mb: 0.5,
                     }}
                   >
                     <Box
                       sx={{
                         bgcolor: '#f3f4f6',
                         color: '#888',
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: 2,
+                        px: 1.2,
+                        py: 0.3,
+                        borderRadius: 1,
                         maxWidth: '75%',
-                        fontSize: 13,
+                        fontSize: 12,
                         wordBreak: 'break-word',
                         fontStyle: 'italic',
                       }}
@@ -862,17 +861,17 @@ const Chat = () => {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: m.sender === 'me' ? 'flex-end' : 'flex-start',
-                      mb: 1.2,
+                      mb: 0.7,
                     }}
                   >
                     {m.sender === 'me' && (
                       <Box
                         sx={{
-                          fontSize: 10,
+                          fontSize: 9,
                           color: '#4f8cff',
                           fontWeight: 700,
-                          mb: 0.2,
-                          mr: 2,
+                          mb: 0.1,
+                          mr: 1,
                         }}
                       >
                         You
@@ -882,14 +881,14 @@ const Chat = () => {
                       sx={{
                         bgcolor: m.sender === 'me' ? '#4f8cff' : '#f5f5f5',
                         color: m.sender === 'me' ? '#fff' : '#333',
-                        px: 1.5,
-                        py: 0.7,
-                        borderRadius: 2,
-                        fontSize: 14,
+                        px: 1.1,
+                        py: 0.5,
+                        borderRadius: 1.2,
+                        fontSize: 13,
                         fontWeight: 500,
                         boxShadow: m.sender === 'me' ? 1 : 0,
                         display: 'inline-block',
-                        maxWidth: 320,
+                        maxWidth: 260,
                         wordBreak: 'break-word',
                       }}
                     >
@@ -899,10 +898,10 @@ const Chat = () => {
                       variant="caption"
                       sx={{
                         color: '#888',
-                        mt: 0.2,
+                        mt: 0.1,
                         ml: m.sender === 'me' ? 'auto' : 0,
                         mr: m.sender === 'me' ? 0 : 'auto',
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: 400,
                       }}
                     >
@@ -919,13 +918,14 @@ const Chat = () => {
               onSubmit={handleSendMessage}
               sx={{
                 mt: 'auto',
-                p: 2,
+                p: 1,
                 bgcolor: 'background.paper',
                 borderTop: '1px solid',
                 borderColor: 'divider',
+                borderRadius: 1.5,
               }}
             >
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={0.5} alignItems="center">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -935,9 +935,9 @@ const Chat = () => {
                 <IconButton
                   onClick={() => fileInputRef.current?.click()}
                   disabled={!connected}
-                  sx={{ color: 'primary.main' }}
+                  sx={{ color: 'primary.main', p: 0.7 }}
                 >
-                  <AttachFileIcon />
+                  <AttachFileIcon sx={{ fontSize: 18 }} />
                 </IconButton>
                 <TextField
                   fullWidth
@@ -945,29 +945,37 @@ const Chat = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Type a message..."
                   disabled={!connected}
-                  size="medium"
+                  size="small"
+                  multiline
+                  minRows={1}
+                  maxRows={4}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      if (inputMessage.trim()) handleSendMessage(e);
+                    }
+                  }}
                   sx={{
-                    fontSize: 16,
-                    borderRadius: 2,
+                    fontSize: 13,
+                    borderRadius: 1.2,
                     bgcolor: '#fff',
                     '.MuiInputBase-input': {
-                      py: 2,
+                      py: 1.2,
                     },
                   }}
                 />
                 <IconButton
                   type="submit"
                   disabled={!connected || !inputMessage.trim()}
-                  sx={{ color: 'primary.main', fontSize: 24 }}
+                  sx={{ color: 'primary.main', fontSize: 20, p: 0.7 }}
                 >
-                  <SendIcon />
+                  <SendIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </Stack>
             </Box>
           </>
         )}
       </Box>
-
       {/* Audio Call Component */}
       <AudioCall
         isCallActive={isCallActive}
@@ -979,7 +987,7 @@ const Chat = () => {
         callDuration={callDuration}
       />
       <audio ref={audioRef} autoPlay />
-    </Box>
+    </Paper>
   );
 };
 
