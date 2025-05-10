@@ -57,6 +57,11 @@ class WebRTCService {
   connectToPeer(peerId) {
     return new Promise((resolve, reject) => {
       try {
+        // If peer is destroyed, reinitialize it
+        if (!this.peer) {
+          this.initialize();
+        }
+
         const conn = this.peer.connect(peerId);
         
         conn.on('open', () => {
@@ -130,6 +135,7 @@ class WebRTCService {
     if (this.peer) {
       this.peer.destroy();
       this.connections.clear();
+      this.peer = null; // Clear the peer instance
     }
   }
 }

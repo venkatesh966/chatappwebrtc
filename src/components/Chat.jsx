@@ -82,9 +82,11 @@ const Chat = () => {
       setError('');
       await WebRTCService.connectToPeer(id);
       setConnected(true);
+      setDisconnectReason(null);
     } catch (err) {
       setError('Failed to connect: ' + (err.message || 'Unknown error'));
       console.error('Connection error:', err);
+      WebRTCService.initialize();
     }
   };
 
@@ -101,7 +103,16 @@ const Chat = () => {
     WebRTCService.disconnect();
     setDisconnectReason('user_disconnect');
     setConnected(false);
+    setTimeout(() => {
+      setMessages([]);
+    }, 1000);
   };
+
+  useEffect(() => {
+    return () => {
+      WebRTCService.disconnect();
+    };
+  }, []);
 
   return (
     <Box
