@@ -132,13 +132,22 @@ class WebRTCService {
           totalChunks: chunks
         });
 
-        // Then send each chunk as raw ArrayBuffer
+        // Then send each chunk with metadata
         for (let i = 0; i < chunks; i++) {
           const start = i * chunkSize;
           const end = Math.min(start + chunkSize, buffer.byteLength);
           const chunk = buffer.slice(start, end);
-          conn.send(chunk); // Send as raw binary
-          await new Promise(r => setTimeout(r, 20));
+          
+          // Send chunk with metadata
+          conn.send({
+            type: 'fileChunk',
+            fileName: file.name,
+            index: i,
+            chunk: chunk,
+            totalChunks: chunks
+          });
+          
+          await new Promise(r => setTimeout(r, 20)); // Small delay between chunks
 
           if (this.onFileProgressCallback) {
             this.onFileProgressCallback({

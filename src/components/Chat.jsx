@@ -45,11 +45,17 @@ const Chat = () => {
     setMyId(localStorage.getItem('peerjs_id'));
 
     WebRTCService.setOnMessageCallback((data) => {
-      // If data is an object and has type 'file', it's metadata
+      // Handle file metadata
       if (typeof data === 'object' && data.type === 'file') {
-        currentReceivingFile = data;
-        currentReceivingChunks = [];
-        currentReceivingCount = 0;
+        setReceivedFiles(prev => new Map(prev).set(data.name, {
+          name: data.name,
+          size: data.size,
+          mimeType: data.mimeType,
+          chunks: new Array(data.totalChunks),
+          receivedChunks: 0,
+          totalChunks: data.totalChunks
+        }));
+        
         setMessages((prev) => [...prev, {
           text: `Receiving file: ${data.name}`,
           sender: 'system',
@@ -59,86 +65,48 @@ const Chat = () => {
         return;
       }
 
-      // If data is an ArrayBuffer and we are receiving a file
-      if (currentReceivingFile && data instanceof ArrayBuffer) {
-        currentReceivingChunks.push(data);
-        currentReceivingCount++;
-
-        // Optionally, update progress here
-
-        // If all chunks received, assemble and download
-        if (currentReceivingCount === currentReceivingFile.totalChunks) {
-          const blob = new Blob(currentReceivingChunks, { type: currentReceivingFile.mimeType });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = currentReceivingFile.name;
-          a.click();
-          URL.revokeObjectURL(url);
-
-          setMessages((prev) => [...prev, {
-            text: `Received file: ${currentReceivingFile.name}`,
-            sender: 'system',
-            isSystem: true,
-            time: new Date()
-          }]);
-
-          // Reset
-          currentReceivingFile = null;
-          currentReceivingChunks = [];
-          currentReceivingCount = 0;
-        }
+      // Handle file chunks
+      if (typeof data === 'object' && data.type === 'fileChunk') {
+        setReceivedFiles(prev => {
+          const newFiles = new Map(prev);
+          const file = newFiles.get(data.fileName);
+          
+          if (file) {
+            file.chunks[data.index] = data.chunk;
+            file.receivedChunks++;
+            
+            // If all chunks received, create and download the file
+            if (file.receivedChunks === file.totalChunks) {
+              const blob = new Blob(file.chunks, { type: file.mimeType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = file.name;
+              a.click();
+              URL.revokeObjectURL(url);
+              
+              // Add file received message
+              setMessages(prev => [...prev, {
+                text: `Received file: ${file.name}`,
+                sender: 'system',
+                isSystem: true,
+                time: new Date()
+              }]);
+              
+              // Remove from received files
+              newFiles.delete(file.name);
+            }
+          }
+          return newFiles;
+        });
         return;
       }
 
+      // Handle other message types
       if (typeof data === 'object') {
         switch (data.type) {
           case 'message':
             setMessages((prev) => [...prev, { text: data.content, sender: 'peer', time: new Date() }]);
-            break;
-          case 'file':
-            // Initialize file reception
-            setReceivedFiles(prev => new Map(prev).set(data.name, {
-              name: data.name,
-              size: data.size,
-              mimeType: data.mimeType,
-              chunks: new Array(data.totalChunks),
-              receivedChunks: 0
-            }));
-            break;
-          case 'fileChunk':
-            // Handle received file chunk
-            setReceivedFiles(prev => {
-              const newFiles = new Map(prev);
-              const file = newFiles.get(data.fileName);
-              if (file) {
-                file.chunks[data.index] = data.chunk;
-                file.receivedChunks++;
-                
-                // If all chunks received, create and download the file
-                if (file.receivedChunks === file.chunks.length) {
-                  const blob = new Blob(file.chunks, { type: file.mimeType });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = file.name;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  
-                  // Add file received message
-                  setMessages(prev => [...prev, {
-                    text: `Received file: ${file.name}`,
-                    sender: 'system',
-                    isSystem: true,
-                    time: new Date()
-                  }]);
-                  
-                  // Remove from received files
-                  newFiles.delete(file.name);
-                }
-              }
-              return newFiles;
-            });
             break;
           case 'disconnect':
             setMessages((prev) => [...prev, { 
