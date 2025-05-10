@@ -35,11 +35,62 @@ const Chat = () => {
   const [receivedFiles, setReceivedFiles] = useState(new Map());
   const fileInputRef = useRef(null);
 
+  // For file receiving (outside useState, inside Chat component)
+  let currentReceivingFile = null;
+  let currentReceivingChunks = [];
+  let currentReceivingCount = 0;
+
   useEffect(() => {
     WebRTCService.initialize();
     setMyId(localStorage.getItem('peerjs_id'));
 
     WebRTCService.setOnMessageCallback((data) => {
+      // If data is an object and has type 'file', it's metadata
+      if (typeof data === 'object' && data.type === 'file') {
+        currentReceivingFile = data;
+        currentReceivingChunks = [];
+        currentReceivingCount = 0;
+        setMessages((prev) => [...prev, {
+          text: `Receiving file: ${data.name}`,
+          sender: 'system',
+          isSystem: true,
+          time: new Date()
+        }]);
+        return;
+      }
+
+      // If data is an ArrayBuffer and we are receiving a file
+      if (currentReceivingFile && data instanceof ArrayBuffer) {
+        currentReceivingChunks.push(data);
+        currentReceivingCount++;
+
+        // Optionally, update progress here
+
+        // If all chunks received, assemble and download
+        if (currentReceivingCount === currentReceivingFile.totalChunks) {
+          const blob = new Blob(currentReceivingChunks, { type: currentReceivingFile.mimeType });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = currentReceivingFile.name;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          setMessages((prev) => [...prev, {
+            text: `Received file: ${currentReceivingFile.name}`,
+            sender: 'system',
+            isSystem: true,
+            time: new Date()
+          }]);
+
+          // Reset
+          currentReceivingFile = null;
+          currentReceivingChunks = [];
+          currentReceivingCount = 0;
+        }
+        return;
+      }
+
       if (typeof data === 'object') {
         switch (data.type) {
           case 'message':
@@ -303,7 +354,7 @@ const Chat = () => {
         </Typography>
       </Box>
       {/* Chat Area */}
-      <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fafbfc' }}>
+      <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fafbfc', pb: 0 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
         )}
@@ -389,14 +440,42 @@ const Chat = () => {
           </>
         ) : (
           <>
-            {/* Date Divider */}
+            {/* Date Divider and CLOSE button */}
             {messages.length > 0 && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, position: 'relative' }}>
                 <Box sx={{ flex: 1, height: 1, bgcolor: '#e0e0e0' }} />
-                <Typography sx={{ mx: 2, color: '#888', fontWeight: 500, fontSize: 14 }}>
+                <Typography sx={{ mx: 2, color: '#888', fontWeight: 500, fontSize: 14, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
                   Today
                 </Typography>
-                <Box sx={{ flex: 1, height: 1, bgcolor: '#e0e0e0' }} />
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleEndSession}
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    py: 0.3,
+                    px: 1.5,
+                    borderRadius: 2,
+                    border: '1.5px solid #f44336',
+                    color: '#f44336',
+                    letterSpacing: 0.5,
+                    background: '#fff',
+                    minHeight: 24,
+                    minWidth: 0,
+                    boxShadow: 'none',
+                    position: 'absolute',
+                    right: 0,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    '&:hover': {
+                      bgcolor: '#ffeaea',
+                      borderColor: '#d32f2f',
+                    },
+                  }}
+                >
+                  CLOSE
+                </Button>
               </Box>
             )}
             {/* File Progress */}
@@ -414,8 +493,8 @@ const Chat = () => {
             )}
             <Box
               sx={{
-                minHeight: 180,
-                maxHeight: 260,
+                minHeight: 260,
+                maxHeight: 340,
                 overflowY: 'auto',
                 mb: 2,
                 bgcolor: 'white',
@@ -450,8 +529,8 @@ const Chat = () => {
                   >
                     <Box
                       sx={{
-                        bgcolor: 'warning.light',
-                        color: 'warning.contrastText',
+                        bgcolor: '#f3f4f6',
+                        color: '#888',
                         px: 2,
                         py: 0.5,
                         borderRadius: 2,
@@ -534,7 +613,7 @@ const Chat = () => {
                 borderColor: 'divider',
               }}
             >
-              <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -554,41 +633,25 @@ const Chat = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Type a message..."
                   disabled={!connected}
-                  size="small"
+                  size="medium"
+                  sx={{
+                    fontSize: 16,
+                    borderRadius: 2,
+                    bgcolor: '#fff',
+                    '.MuiInputBase-input': {
+                      py: 2,
+                    },
+                  }}
                 />
                 <IconButton
                   type="submit"
                   disabled={!connected || !inputMessage.trim()}
-                  sx={{ color: 'primary.main' }}
+                  sx={{ color: 'primary.main', fontSize: 24 }}
                 >
                   <SendIcon />
                 </IconButton>
               </Stack>
             </Box>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<CallEndIcon />}
-              fullWidth
-              onClick={handleEndSession}
-              sx={{
-                fontSize: 15,
-                fontWeight: 600,
-                py: 1,
-                borderRadius: 2,
-                mt: 1.5,
-                border: '2px solid #f44336',
-                color: '#f44336',
-                letterSpacing: 0.5,
-                background: '#fff',
-                '&:hover': {
-                  bgcolor: '#ffeaea',
-                  borderColor: '#d32f2f',
-                },
-              }}
-            >
-              END SESSION
-            </Button>
           </>
         )}
       </Box>

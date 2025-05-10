@@ -117,41 +117,29 @@ class WebRTCService {
     }
 
     try {
-      // Create a file reader
       const reader = new FileReader();
-      
-      // Read file as ArrayBuffer
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const buffer = e.target.result;
-        
-        // Split the file into chunks (1MB each)
-        const chunkSize = 1024 * 1024;
+        const chunkSize = 1024 * 32; // 32KB chunks for reliability
         const chunks = Math.ceil(buffer.byteLength / chunkSize);
-        
-        // Send file metadata first
-        const metadata = {
+
+        // Send metadata first
+        conn.send({
           type: 'file',
           name: file.name,
           size: file.size,
           mimeType: file.type,
           totalChunks: chunks
-        };
-        
-        conn.send(metadata);
-        
-        // Send chunks
+        });
+
+        // Then send each chunk as raw ArrayBuffer
         for (let i = 0; i < chunks; i++) {
           const start = i * chunkSize;
           const end = Math.min(start + chunkSize, buffer.byteLength);
           const chunk = buffer.slice(start, end);
-          
-          conn.send({
-            type: 'fileChunk',
-            chunk: chunk,
-            index: i
-          });
-          
-          // Report progress
+          conn.send(chunk); // Send as raw binary
+          await new Promise(r => setTimeout(r, 20));
+
           if (this.onFileProgressCallback) {
             this.onFileProgressCallback({
               fileName: file.name,
@@ -160,7 +148,6 @@ class WebRTCService {
           }
         }
       };
-      
       reader.readAsArrayBuffer(file);
     } catch (err) {
       console.error('Error sending file:', err);
