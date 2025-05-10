@@ -146,7 +146,7 @@ class WebRTCService {
         if (file.type === 'application/pdf') {
           chunkSize = 1024 * 64; // 64KB chunks for PDFs
         } else if (file.type.startsWith('image/')) {
-          chunkSize = 1024 * 16; // 16KB chunks for images
+          chunkSize = 1024 * 8; // 8KB chunks for images to prevent corruption
         } else {
           chunkSize = 1024 * 32; // 32KB chunks for other files
         }
@@ -159,7 +159,8 @@ class WebRTCService {
           name: file.name,
           size: file.size,
           mimeType: file.type,
-          totalChunks: chunks
+          totalChunks: chunks,
+          chunkSize: chunkSize
         });
 
         // Then send each chunk with metadata
@@ -174,12 +175,13 @@ class WebRTCService {
             fileName: file.name,
             index: i,
             chunk: chunk,
-            totalChunks: chunks
+            totalChunks: chunks,
+            isLastChunk: i === chunks - 1
           });
           
           // Add a small delay between chunks to prevent overwhelming the connection
           // Use shorter delay for images to improve transfer speed
-          const delay = file.type.startsWith('image/') ? 10 : 20;
+          const delay = file.type.startsWith('image/') ? 5 : 20;
           await new Promise(r => setTimeout(r, delay));
 
           if (this.onFileProgressCallback) {

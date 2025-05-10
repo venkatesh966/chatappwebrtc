@@ -54,7 +54,8 @@ const Chat = () => {
           mimeType: data.mimeType,
           chunks: new Array(data.totalChunks),
           receivedChunks: 0,
-          totalChunks: data.totalChunks
+          totalChunks: data.totalChunks,
+          chunkSize: data.chunkSize
         }));
         
         setReceivingFileProgress({
@@ -78,6 +79,7 @@ const Chat = () => {
           const file = newFiles.get(data.fileName);
           
           if (file) {
+            // Store the chunk
             file.chunks[data.index] = data.chunk;
             file.receivedChunks++;
             
@@ -88,10 +90,22 @@ const Chat = () => {
               progress: progress
             });
             
-            // If all chunks received, create and download the file
-            if (file.receivedChunks === file.totalChunks) {
+            // If all chunks received or this is the last chunk, create and download the file
+            if (file.receivedChunks === file.totalChunks || data.isLastChunk) {
               try {
-                const blob = new Blob(file.chunks, { type: file.mimeType });
+                // Filter out any undefined chunks and create blob
+                const validChunks = file.chunks.filter(chunk => chunk !== undefined);
+                if (validChunks.length !== file.totalChunks) {
+                  throw new Error('Some chunks are missing');
+                }
+
+                const blob = new Blob(validChunks, { type: file.mimeType });
+                
+                // Verify blob size matches original file size
+                if (blob.size !== file.size) {
+                  throw new Error('File size mismatch');
+                }
+
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -112,7 +126,7 @@ const Chat = () => {
               } catch (err) {
                 console.error('Error creating file:', err);
                 setMessages(prev => [...prev, {
-                  text: `Error receiving file: ${file.name}`,
+                  text: `Error receiving file: ${file.name} - ${err.message}`,
                   sender: 'system',
                   isSystem: true,
                   time: new Date()
