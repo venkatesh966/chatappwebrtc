@@ -242,12 +242,14 @@ const Chat = ({ boxWidth = 420 }) => {
               const speed = (file.size / (1024 * 1024) / (transferTime / 60)).toFixed(2); // MB/min
               
               // Add file received message
-              setMessages(prev => [...prev, {
-                text: `Received file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB in ${transferTime}s, ${speed}MB/min)`,
-                sender: 'system',
-                isSystem: true,
-                time: new Date()
-              }]);
+              if (peerId && peerId !== myId) {
+                setMessages(prev => [...prev, {
+                  text: `Received file: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB in ${transferTime}s, ${speed}MB/min)`,
+                  sender: 'system',
+                  isSystem: true,
+                  time: new Date()
+                }]);
+              }
               
               // Clear receiving progress
               setReceivingFileProgress(null);
