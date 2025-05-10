@@ -1,6 +1,21 @@
 // src/services/WebRTCService.js
 import Peer from 'peerjs';
 
+const ID_KEY = 'webrtc_user_id';
+
+function generateId() {
+  return 'user_' + Math.random().toString(36).substr(2, 9);
+}
+
+function getOrCreateUserId() {
+  let id = localStorage.getItem(ID_KEY);
+  if (!id) {
+    id = generateId();
+    localStorage.setItem(ID_KEY, id);
+  }
+  return id;
+}
+
 class WebRTCService {
   constructor() {
     this.peer = null;
@@ -20,26 +35,10 @@ class WebRTCService {
   }
 
   initialize() {
-    let userId = localStorage.getItem('peerjs_id');
-    // Always try to use a unique ID for each tab
-    if (!userId || window.name === '' || window.name.startsWith('peerjs_tab_')) {
-      userId = 'user_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('peerjs_id', userId);
-      window.name = 'peerjs_tab_' + userId;
-    } else {
-      // If this is a new tab, force a new ID
-      if (!window.name.startsWith('peerjs_tab_')) {
-        userId = 'user_' + Math.random().toString(36).substr(2, 9);
-        window.name = 'peerjs_tab_' + userId;
-      } else {
-        userId = window.name.replace('peerjs_tab_', '');
-      }
-    }
+    const userId = getOrCreateUserId();
     this.peer = new Peer(userId);
 
     this.peer.on('open', (id) => {
-      localStorage.setItem('peerjs_id', id);
-      window.name = 'peerjs_tab_' + id;
       console.log('🟢 Peer open. My ID:', id);
     });
 
@@ -49,16 +48,14 @@ class WebRTCService {
 
     this.peer.on('error', (err) => {
       console.error('PeerJS error:', err);
+      if (this.onError) this.onError(err);
     });
 
-    // incoming connections
-    this.peer.on('connection', conn => this._handleConnection(conn));
-
-    // lifecycle events
     this.peer.on('disconnected', () => {
       console.warn('⚠️ Peer disconnected, reconnecting…');
       this.peer.reconnect();
     });
+
     this.peer.on('close', () => {
       console.log('🛑 Peer closed');
       this.connections.clear();
