@@ -46,6 +46,7 @@ const Chat = () => {
   const [callDuration, setCallDuration] = useState('00:00');
   const callTimerRef = useRef(null);
   const callStartTimeRef = useRef(null);
+  const audioRef = useRef(null);
 
   // For file receiving (outside useState, inside Chat component)
   let currentReceivingFile = null;
@@ -445,7 +446,6 @@ const Chat = () => {
     WebRTCService.setOnCallStatusCallback((status, stream, error) => {
       switch (status) {
         case 'incoming':
-          // Handle incoming call
           if (window.confirm('Incoming call. Accept?')) {
             WebRTCService.answerCall(stream);
           } else {
@@ -459,17 +459,27 @@ const Chat = () => {
           setIsCallActive(true);
           setCallStatus('active');
           startCallTimer();
+          if (audioRef.current && stream) {
+            audioRef.current.srcObject = stream;
+            audioRef.current.play();
+          }
           break;
         case 'ended':
           setIsCallActive(false);
           setCallStatus('ended');
           stopCallTimer();
+          if (audioRef.current) {
+            audioRef.current.srcObject = null;
+          }
           break;
         case 'error':
           console.error('Call error:', error);
           setIsCallActive(false);
           setCallStatus('error');
           stopCallTimer();
+          if (audioRef.current) {
+            audioRef.current.srcObject = null;
+          }
           break;
       }
     });
@@ -477,6 +487,9 @@ const Chat = () => {
     return () => {
       WebRTCService.endCall();
       stopCallTimer();
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+      }
     };
   }, []);
 
@@ -965,6 +978,7 @@ const Chat = () => {
         callStatus={callStatus}
         callDuration={callDuration}
       />
+      <audio ref={audioRef} autoPlay />
     </Box>
   );
 };
