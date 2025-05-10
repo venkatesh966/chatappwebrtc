@@ -55,7 +55,12 @@ class WebRTCService {
     return new Promise((resolve, reject) => {
       try {
         const conn = this.peer.connect(peerId);
-        
+
+        if (!conn) {
+          reject(new Error('Could not create connection. Peer may be offline or unavailable.'));
+          return;
+        }
+
         conn.on('open', () => {
           console.log('➡️ Connected to', conn.peer);
           this.connections.set(conn.peer, conn);

@@ -1,20 +1,13 @@
 import { TextField, Button, IconButton, Box } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 
-const PERSON_EMOJIS = [
-  '🧑', '👩', '👨‍🦱', '🧔', '👩‍🦰', '👨‍🦰', '👩‍🦳', '👨‍🦳', '👩‍🦲', '👨‍🦲', '🧑‍🦰', '🧑‍🦱'
-];
-function getRandomPersonEmoji() {
-  return PERSON_EMOJIS[Math.floor(Math.random() * PERSON_EMOJIS.length)];
-}
-
 const ChatInput = ({
   value,
   onChange,
   onSend,
   connectMode = false,
 }) => (
-  <Box sx={{ width: '100%' }}>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
     <TextField
       placeholder={connectMode ? 'Enter peer ID' : 'Type your message...'}
       variant="outlined"
@@ -35,11 +28,10 @@ const ChatInput = ({
         variant="contained"
         onClick={onSend}
         sx={{
-          mt: 2,
-          width: '100%',
           fontSize: 15,
           fontWeight: 600,
           py: 1,
+          px: 2,
           borderRadius: 2,
           boxShadow: 1,
         }}
@@ -62,7 +54,6 @@ const ChatInput = ({
           borderRadius: 2,
           fontSize: 20,
           '&:hover': { bgcolor: 'primary.dark' },
-          mt: 1,
         }}
       >
         <SendIcon fontSize="inherit" />

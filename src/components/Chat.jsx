@@ -18,7 +18,7 @@ const Chat = () => {
   const [myId, setMyId] = useState('');
   const endRef = useRef(null);
   const [error, setError] = useState('');
-  const [peerEmoji, setPeerEmoji] = useState('🧑');
+  const [peerEmoji] = useState('🧑');
 
   useEffect(() => {
     WebRTCService.initialize();
@@ -34,7 +34,6 @@ const Chat = () => {
     WebRTCService.setOnPeerConnectedCallback((peerId) => {
       setPeerId(peerId);
       setConnected(true);
-      setPeerEmoji(WebRTCService?.getRandomPersonEmoji());
     });
 
     return () => {
@@ -57,7 +56,6 @@ const Chat = () => {
       setError('');
       await WebRTCService.connectToPeer(id);
       setConnected(true);
-      setPeerEmoji(WebRTCService.getRandomPersonEmoji());
     } catch (err) {
       setError('Failed to connect: ' + (err.message || 'Unknown error'));
       console.error('Connection error:', err);
@@ -77,7 +75,6 @@ const Chat = () => {
     setConnected(false);
     setPeerId('');
     setMessages([]);
-    setPeerEmoji(WebRTCService.getRandomPersonEmoji());
     WebRTCService.initialize();
     setMyId(localStorage.getItem('peerjs_id'));
   };
@@ -85,8 +82,8 @@ const Chat = () => {
   return (
     <Box
       sx={{
-        maxWidth: CARD_WIDTH,
-        minWidth: 400,
+        maxWidth: 750,
+        minWidth: 480,
         minHeight: connected ? CHAT_HEIGHT : INITIAL_HEIGHT,
         transition: 'min-height 0.4s cubic-bezier(.4,2,.6,1)',
         mx: 'auto',
