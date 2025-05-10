@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
-import { Box, Stack, Alert, Collapse, Button } from '@mui/material';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  IconButton,
+  Stack,
+  Alert,
+  Avatar,
+} from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import CallEndIcon from '@mui/icons-material/CallEnd';
-import ChatHeader from './ChatHeader';
-import ChatMessages from './ChatMessages';
-import ChatInput from './ChatInput';
-
-const INITIAL_HEIGHT = 340;
-const CHAT_HEIGHT = 540;
-const CARD_WIDTH = 750;
+import PersonIcon from '@mui/icons-material/Person';
 
 const Chat = () => {
   const [connected, setConnected] = useState(false);
@@ -18,27 +22,13 @@ const Chat = () => {
   const [myId, setMyId] = useState('');
   const endRef = useRef(null);
   const [error, setError] = useState('');
-  const [peerEmoji] = useState('🧑');
-  const [peerDisconnected, setPeerDisconnected] = useState(false);
-
-  // Always get the latest peer ID from localStorage
-  const updateMyId = () => setMyId(localStorage.getItem('peerjs_id') || '');
 
   useEffect(() => {
     WebRTCService.initialize();
-    updateMyId();
+    setMyId(localStorage.getItem('peerjs_id'));
 
     WebRTCService.setOnMessageCallback((data) => {
-      if (data === '__DISCONNECT__') {
-        setPeerDisconnected(true);
-        setConnected(false);
-        setPeerId('');
-        return;
-      }
-      setMessages((prev) => [
-        ...prev,
-        { text: data, sender: 'peer', timestamp: new Date().toISOString() }
-      ]);
+      setMessages((prev) => [...prev, { text: data, sender: 'peer' }]);
     });
 
     WebRTCService.setOnPeerConnectedCallback((peerId) => {
@@ -46,25 +36,9 @@ const Chat = () => {
       setConnected(true);
     });
 
-    WebRTCService.setOnPeerDisconnectedCallback(() => {
-      setPeerDisconnected(true);
-      setConnected(false);
-      setPeerId('');
-    });
-
-    // Notify peer on browser/tab close
-    const handleBeforeUnload = () => {
-      if (connected && peerId) {
-        WebRTCService.sendMessage(peerId, '__DISCONNECT__');
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       WebRTCService.disconnect();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
@@ -84,38 +58,36 @@ const Chat = () => {
       setConnected(true);
     } catch (err) {
       setError('Failed to connect: ' + (err.message || 'Unknown error'));
+      console.error('Connection error:', err);
     }
   };
 
-  const handleSendMessage = (text) => {
-    if (!text.trim()) return;
-    const timestamp = new Date().toISOString();
-    setMessages((prev) => [...prev, { text, sender: 'me', timestamp }]);
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    const text = inputMessage.trim();
+    if (!text) return;
+    setMessages((prev) => [...prev, { text, sender: 'me' }]);
     WebRTCService.sendMessage(peerId, text);
+    setInputMessage('');
   };
 
   const handleEndSession = () => {
-    if (peerId) {
-      WebRTCService.sendMessage(peerId, '__DISCONNECT__');
-    }
+    WebRTCService.disconnect();
     setConnected(false);
     setPeerId('');
     setMessages([]);
-    setPeerDisconnected(false);
-    WebRTCService.disconnect();
     WebRTCService.initialize();
-    updateMyId();
+    setMyId(localStorage.getItem('peerjs_id'));
   };
 
   return (
     <Box
       sx={{
-        maxWidth: CARD_WIDTH,
-        minWidth: 480,
-        minHeight: connected ? CHAT_HEIGHT : INITIAL_HEIGHT,
-        transition: 'min-height 0.4s cubic-bezier(.4,2,.6,1)',
+        maxWidth: 400,
+        minWidth: 340,
+        minHeight: 420,
         mx: 'auto',
-        mt: 8,
+        mt: 10,
         borderRadius: 4,
         boxShadow: 8,
         bgcolor: 'background.paper',
@@ -124,44 +96,169 @@ const Chat = () => {
         flexDirection: 'column',
       }}
     >
-      <ChatHeader myId={myId} />
+      {/* Minimal Header */}
+      <Box
+        sx={{
+          background: 'linear-gradient(90deg, #4f8cff 0%, #3ff57a 100%)',
+          py: 2,
+          px: 3,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          borderBottomLeftRadius: 32,
+          borderBottomRightRadius: 32,
+        }}
+      >
+        <Avatar
+          sx={{
+            bgcolor: 'white',
+            color: '#4f8cff',
+            width: 44,
+            height: 44,
+            fontSize: 28,
+            border: '2px solid #3b6be0',
+          }}
+        >
+          <PersonIcon fontSize="inherit" />
+        </Avatar>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: 18,
+            userSelect: 'all',
+            letterSpacing: 0.5,
+          }}
+        >
+          Your ID: <b style={{ color: '#fff' }}>{myId}</b>
+        </Typography>
+      </Box>
+
       <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
-        {peerDisconnected && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Peer has disconnected.
-          </Alert>
-        )}
+
         {!connected ? (
           <Stack direction="row" spacing={1} mb={2} mt={6}>
-            <ChatInput
+            <TextField
+              placeholder="Enter peer ID"
+              variant="outlined"
+              size="small"
               value={peerId}
-              onChange={setPeerId}
-              onSend={handleConnect}
-              connectMode={true}
+              onChange={(e) => setPeerId(e.target.value)}
+              fullWidth
+              InputProps={{ style: { fontSize: 15, padding: 8 } }}
             />
+            <Button
+              variant="contained"
+              onClick={handleConnect}
+              sx={{
+                minWidth: 90,
+                fontSize: 15,
+                fontWeight: 600,
+                py: 1,
+                px: 2,
+                borderRadius: 2,
+                boxShadow: 1,
+              }}
+              size="small"
+            >
+              CONNECT
+            </Button>
           </Stack>
         ) : (
           <>
-            <Collapse in={connected}>
-              <ChatMessages
-                messages={messages}
-                peerEmoji={peerEmoji}
-                endRef={endRef}
-              />
-            </Collapse>
-            <ChatInput
-              value={inputMessage}
-              onChange={setInputMessage}
-              onSend={() => {
-                handleSendMessage(inputMessage);
-                setInputMessage('');
+            <Box
+              sx={{
+                minHeight: 180,
+                maxHeight: 220,
+                overflowY: 'auto',
+                mb: 2,
+                bgcolor: 'grey.50',
+                borderRadius: 2,
+                p: 1,
+                border: '1px solid #e3e8f0',
+                flex: 1,
               }}
-            />
+            >
+              {messages.length === 0 && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textAlign: 'center', mt: 4, opacity: 0.7 }}
+                >
+                  Say hello to your peer!
+                </Typography>
+              )}
+              {messages.map((m, i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    display: 'flex',
+                    justifyContent:
+                      m.sender === 'me' ? 'flex-end' : 'flex-start',
+                    mb: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      bgcolor:
+                        m.sender === 'me'
+                          ? 'primary.main'
+                          : 'grey.200',
+                      color:
+                        m.sender === 'me'
+                          ? 'primary.contrastText'
+                          : 'text.primary',
+                      px: 2,
+                      py: 1,
+                      borderRadius: 2,
+                      maxWidth: '75%',
+                      fontSize: 15,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {m.text}
+                  </Box>
+                </Box>
+              ))}
+              <div ref={endRef} />
+            </Box>
+
+            <form onSubmit={handleSendMessage}>
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  placeholder="Type your message..."
+                  variant="outlined"
+                  size="small"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  fullWidth
+                  InputProps={{ style: { fontSize: 15, padding: 8 } }}
+                />
+                <IconButton
+                  type="submit"
+                  color="primary"
+                  disabled={!inputMessage.trim()}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    width: 38,
+                    height: 38,
+                    borderRadius: 2,
+                    fontSize: 20,
+                    '&:hover': { bgcolor: 'primary.dark' },
+                  }}
+                >
+                  <SendIcon fontSize="inherit" />
+                </IconButton>
+              </Stack>
+            </form>
+
             <Button
               variant="outlined"
               color="error"
