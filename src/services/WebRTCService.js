@@ -35,20 +35,39 @@ class WebRTCService {
   }
 
   initialize() {
-    const userId = getOrCreateUserId();
+    // Try to initialize with existing ID first
+    this._initializeWithId(getOrCreateUserId());
+  }
+
+  _initializeWithId(userId) {
     this.peer = new Peer(userId);
 
     this.peer.on('open', (id) => {
       console.log('🟢 Peer open. My ID:', id);
-    });
-
-    this.peer.on('connection', (conn) => {
-      this._handleConnection(conn);
+      // Update localStorage with the actual ID from PeerJS
+      localStorage.setItem(ID_KEY, id);
     });
 
     this.peer.on('error', (err) => {
       console.error('PeerJS error:', err);
-      if (this.onError) this.onError(err);
+      // If ID is taken, generate a new one and retry
+      if (err.type === 'id-taken') {
+        console.log('ID taken, generating new ID...');
+        const newId = generateId();
+        localStorage.setItem(ID_KEY, newId);
+        // Clean up old peer
+        if (this.peer) {
+          this.peer.destroy();
+        }
+        // Try again with new ID
+        this._initializeWithId(newId);
+      } else if (this.onError) {
+        this.onError(err);
+      }
+    });
+
+    this.peer.on('connection', (conn) => {
+      this._handleConnection(conn);
     });
 
     this.peer.on('disconnected', () => {
