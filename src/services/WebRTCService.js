@@ -113,14 +113,44 @@ class WebRTCService {
     const conn = this.connections.get(peerId);
     if (!conn || !conn.open) {
       console.error('No open connection to', peerId);
-      return;
+      throw new Error('No open connection to peer');
+    }
+
+    // Adjust file size limits based on file type
+    const MAX_FILE_SIZE = {
+      'application/pdf': 200 * 1024 * 1024, // 200MB for PDFs
+      'image/': 50 * 1024 * 1024, // 50MB for images
+      'default': 100 * 1024 * 1024 // 100MB default
+    };
+
+    // Determine the appropriate size limit
+    let sizeLimit = MAX_FILE_SIZE.default;
+    if (file.type === 'application/pdf') {
+      sizeLimit = MAX_FILE_SIZE['application/pdf'];
+    } else if (file.type.startsWith('image/')) {
+      sizeLimit = MAX_FILE_SIZE['image/'];
+    }
+
+    if (file.size > sizeLimit) {
+      const limitInMB = sizeLimit / (1024 * 1024);
+      throw new Error(`File size exceeds limit of ${limitInMB}MB for ${file.type} files`);
     }
 
     try {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const buffer = e.target.result;
-        const chunkSize = 1024 * 32; // 32KB chunks for reliability
+        
+        // Adjust chunk size based on file type
+        let chunkSize;
+        if (file.type === 'application/pdf') {
+          chunkSize = 1024 * 64; // 64KB chunks for PDFs
+        } else if (file.type.startsWith('image/')) {
+          chunkSize = 1024 * 16; // 16KB chunks for images
+        } else {
+          chunkSize = 1024 * 32; // 32KB chunks for other files
+        }
+
         const chunks = Math.ceil(buffer.byteLength / chunkSize);
 
         // Send metadata first
@@ -147,7 +177,10 @@ class WebRTCService {
             totalChunks: chunks
           });
           
-          await new Promise(r => setTimeout(r, 20)); // Small delay between chunks
+          // Add a small delay between chunks to prevent overwhelming the connection
+          // Use shorter delay for images to improve transfer speed
+          const delay = file.type.startsWith('image/') ? 10 : 20;
+          await new Promise(r => setTimeout(r, delay));
 
           if (this.onFileProgressCallback) {
             this.onFileProgressCallback({
@@ -157,6 +190,11 @@ class WebRTCService {
           }
         }
       };
+
+      reader.onerror = () => {
+        throw new Error('Error reading file');
+      };
+
       reader.readAsArrayBuffer(file);
     } catch (err) {
       console.error('Error sending file:', err);

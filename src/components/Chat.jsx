@@ -32,6 +32,7 @@ const Chat = () => {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [fileProgress, setFileProgress] = useState(null);
+  const [receivingFileProgress, setReceivingFileProgress] = useState(null);
   const [receivedFiles, setReceivedFiles] = useState(new Map());
   const fileInputRef = useRef(null);
 
@@ -56,6 +57,11 @@ const Chat = () => {
           totalChunks: data.totalChunks
         }));
         
+        setReceivingFileProgress({
+          fileName: data.name,
+          progress: 0
+        });
+        
         setMessages((prev) => [...prev, {
           text: `Receiving file: ${data.name}`,
           sender: 'system',
@@ -75,23 +81,43 @@ const Chat = () => {
             file.chunks[data.index] = data.chunk;
             file.receivedChunks++;
             
+            // Update receiving progress
+            const progress = (file.receivedChunks / file.totalChunks) * 100;
+            setReceivingFileProgress({
+              fileName: file.name,
+              progress: progress
+            });
+            
             // If all chunks received, create and download the file
             if (file.receivedChunks === file.totalChunks) {
-              const blob = new Blob(file.chunks, { type: file.mimeType });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = file.name;
-              a.click();
-              URL.revokeObjectURL(url);
-              
-              // Add file received message
-              setMessages(prev => [...prev, {
-                text: `Received file: ${file.name}`,
-                sender: 'system',
-                isSystem: true,
-                time: new Date()
-              }]);
+              try {
+                const blob = new Blob(file.chunks, { type: file.mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                // Add file received message
+                setMessages(prev => [...prev, {
+                  text: `Received file: ${file.name}`,
+                  sender: 'system',
+                  isSystem: true,
+                  time: new Date()
+                }]);
+                
+                // Clear receiving progress
+                setReceivingFileProgress(null);
+              } catch (err) {
+                console.error('Error creating file:', err);
+                setMessages(prev => [...prev, {
+                  text: `Error receiving file: ${file.name}`,
+                  sender: 'system',
+                  isSystem: true,
+                  time: new Date()
+                }]);
+              }
               
               // Remove from received files
               newFiles.delete(file.name);
@@ -250,7 +276,21 @@ const Chat = () => {
         time: new Date()
       }]);
     } catch (err) {
-      setError('Failed to send file: ' + err.message);
+      let errorMessage = 'Failed to send file: ';
+      if (err.message.includes('exceeds limit')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('No open connection')) {
+        errorMessage = 'Connection lost. Please reconnect to send files.';
+      } else {
+        errorMessage += err.message;
+      }
+      setError(errorMessage);
+      setMessages(prev => [...prev, {
+        text: `Failed to send file: ${file.name}`,
+        sender: 'system',
+        isSystem: true,
+        time: new Date()
+      }]);
     }
   };
 
@@ -447,14 +487,14 @@ const Chat = () => {
               </Box>
             )}
             {/* File Progress */}
-            {fileProgress && (
+            {(fileProgress || receivingFileProgress) && (
               <Paper sx={{ p: 2, mb: 2, bgcolor: '#e3f2fd' }}>
                 <Typography variant="body2" sx={{ mb: 1 }}>
-                  Sending {fileProgress.fileName}
+                  {fileProgress ? 'Sending' : 'Receiving'} {fileProgress?.fileName || receivingFileProgress?.fileName}
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
-                  value={fileProgress.progress} 
+                  value={fileProgress?.progress || receivingFileProgress?.progress} 
                   sx={{ height: 8, borderRadius: 4 }}
                 />
               </Paper>
