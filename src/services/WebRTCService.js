@@ -1,3 +1,4 @@
+// src/services/WebRTCService.js
 import Peer from 'peerjs';
 
 class WebRTCService {
@@ -35,6 +36,14 @@ class WebRTCService {
         resolve(id);
       });
       this.peer.once('error', err => {
+        // ◼️ if that ID was already in use, pick a new one and retry
+        if (err.type === 'unavailable-id' || err.message?.includes('is taken')) {
+          console.warn(`PeerJS ID "${userId}" taken—generating a new one.`);
+          const newId = userId + '_' + Math.random().toString(36).substr(2, 5);
+          localStorage.setItem('peerjs_id', newId);
+          this.peer.destroy();
+          return this.initialize();  // retry with the new ID
+        }
         console.error('PeerJS fatal error:', err);
         reject(err);
         if (this.onError) this.onError(err);
@@ -44,7 +53,7 @@ class WebRTCService {
     // incoming connections
     this.peer.on('connection', conn => this._handleConnection(conn));
 
-    // reconnect logic
+    // lifecycle events
     this.peer.on('disconnected', () => {
       console.warn('⚠️ Peer disconnected, reconnecting…');
       this.peer.reconnect();
@@ -60,14 +69,14 @@ class WebRTCService {
   }
 
   _startHeartbeat() {
-    // ping every 5s
+    // send PING every 5s
     this.pingInterval = setInterval(() => {
       for (const conn of this.connections.values()) {
         if (conn.open) conn.send('__PING__');
       }
     }, 5000);
 
-    // check last pong, cleanup peers >15s stale
+    // check for stale peers every 5s (>15s no PONG)
     this.checkInterval = setInterval(() => {
       const now = Date.now();
       for (const [peerId] of this.connections) {
