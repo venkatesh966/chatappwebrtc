@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Box,
   Typography,
@@ -29,7 +29,46 @@ const ChatInterface = ({
   onStartCall, // This will be () => handleStartCall(connectedPeerId)
   formatTime,
   endRef,
+  // Typing indicator props
+  isPeerTyping,
+  onNotifyTypingState,
+  connectedPeerIdForTyping, // Renamed to avoid conflict if connectedPeerId prop has other uses
 }) => {
+  const typingTimeoutRef = useRef(null);
+
+  const handleInputChange = (e) => {
+    const message = e.target.value;
+    setInputMessage(message);
+
+    if (!connectedPeerIdForTyping) return;
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    if (message.trim().length > 0) {
+      onNotifyTypingState(connectedPeerIdForTyping, true); // Send typing_started
+      typingTimeoutRef.current = setTimeout(() => {
+        onNotifyTypingState(connectedPeerIdForTyping, false); // Send typing_stopped after delay
+      }, 2000); // 2 seconds delay
+    } else {
+      // If message is empty (e.g., cleared), immediately send typing_stopped
+      onNotifyTypingState(connectedPeerIdForTyping, false);
+    }
+  };
+
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (inputMessage.trim() && connectedPeerIdForTyping) {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      onNotifyTypingState(connectedPeerIdForTyping, false); // Ensure typing_stopped is sent before message
+      onSendMessage(e); // This will also call setInputMessage("") which will trigger handleInputChange again if not careful
+    }
+  };
+
   return (
     <>
       {/* Date Divider and CLOSE button */}
@@ -168,144 +207,189 @@ const ChatInterface = ({
           />
         </Paper>
       ))}
+
+      {/* NEW WRAPPER for Middle Section (Messages + Typing Indicator) */}
       <Box
         sx={{
-          minHeight: 180,
-          maxHeight: 260,
-          overflowY: "auto",
-          mb: 1,
-          bgcolor: "white",
-          borderRadius: 1.5,
-          p: 0.5,
-          border: "1px solid #e3e8f0",
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          fontSize: 13,
-          boxShadow: "0 1px 4px 0 rgba(60,60,60,0.03)",
+          position: 'relative',
+          flex: 1, // This wrapper takes up the available vertical space
+          display: 'flex',
+          flexDirection: 'column',
+          '&::before': { // The fixed gradient strip
+            content: '""',
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: '3px',
+            background: 'linear-gradient(to bottom, #4f8cff, #3ff57a)',
+            borderTopLeftRadius: (theme) => theme.spacing(1.5), // Match message box rounding (e.g., 6px)
+            borderBottomLeftRadius: (theme) => theme.spacing(1.5), // Match message box rounding
+          }
         }}
       >
-        {messages.length === 0 && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              textAlign: "center",
-              mt: 2,
-              opacity: 0.7,
-              fontSize: 13,
-            }}
-          >
-            Say hello to your peer!
-          </Typography>
-        )}
-        {messages.map((m, i) =>
-          m.isSystem ? (
-            <Box
-              key={i}
-              className="message-bubble-anim"
+        {/* Message Display Area (Scrollable) */}
+        <Box
+          sx={{
+            minHeight: 180,
+            maxHeight: 260,
+            overflowY: "auto",
+            mb: 0.5, // Margin between messages and typing indicator
+            bgcolor: "white",
+            borderRadius: 1.5, // Applies to all corners initially
+            borderTopLeftRadius: 0, // Flatten top-left to meet gradient
+            borderBottomLeftRadius: 0, // Flatten bottom-left to meet gradient
+            p: 0.5,
+            border: "1px solid #e3e8f0",
+            borderLeft: 'none', // Gradient acts as the visual left border
+            flex: 1, // Allows this box to grow and scroll within the new wrapper
+            display: "flex",
+            flexDirection: "column",
+            fontSize: 13,
+            boxShadow: "0 1px 4px 0 rgba(60,60,60,0.03)",
+            marginLeft: '3px', // Make space for the gradient from the wrapper
+            // Removed position: 'relative' and '&::before' from here
+          }}
+        >
+          {messages.length === 0 && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
               sx={{
-                display: "flex",
-                justifyContent: "center",
-                mb: 0.5,
+                textAlign: "center",
+                mt: 2,
+                opacity: 0.7,
+                fontSize: 13,
               }}
             >
+              Say hello to your peer!
+            </Typography>
+          )}
+          {messages.map((m, i) =>
+            m.isSystem ? (
               <Box
+                key={i}
+                className="message-bubble-anim"
                 sx={{
-                  bgcolor: "#f3f4f6",
-                  color: "#888",
-                  px: 1.2,
-                  py: 0.3,
-                  borderRadius: 1,
-                  maxWidth: "75%",
-                  fontSize: 12,
-                  wordBreak: "break-word",
-                  fontStyle: "italic",
-                  transition: "all 0.3s",
+                  display: "flex",
+                  justifyContent: "center",
+                  mb: 0.5,
                 }}
               >
-                {m.text}
-              </Box>
-            </Box>
-          ) : (
-            <Box
-              key={i}
-              className="message-bubble-anim"
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: m.sender === "me" ? "flex-end" : "flex-start",
-                mb: 0.7,
-              }}
-            >
-              {m.sender === "me" && (
                 <Box
                   sx={{
-                    fontSize: 9,
-                    color: "#4f8cff",
-                    fontWeight: 700,
-                    mb: 0.1,
-                    mr: 1,
-                  }}
-                >
-                  You
-                </Box>
-              )}
-              {m.sender === "peer" && (
-                <Box
-                  sx={{
-                    fontSize: 9,
+                    bgcolor: "#f3f4f6",
                     color: "#888",
-                    fontWeight: 700,
-                    mb: 0.1,
-                    ml: 1,
+                    px: 1.2,
+                    py: 0.3,
+                    borderRadius: 1,
+                    maxWidth: "75%",
+                    fontSize: 12,
+                    wordBreak: "break-word",
+                    fontStyle: "italic",
+                    transition: "all 0.3s",
                   }}
                 >
-                  Peer
+                  {m.text}
                 </Box>
-              )}
-              <Box
-                sx={{
-                  bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
-                  color: m.sender === "me" ? "#fff" : "#333",
-                  px: 1.1,
-                  py: 0.5,
-                  borderRadius: 1.2,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  boxShadow: m.sender === "me" ? 1 : 0,
-                  display: "inline-block",
-                  maxWidth: 260,
-                  wordBreak: "break-word",
-                  transition: "all 0.3s",
-                }}
-              >
-                {m.text}
               </Box>
-              <Typography
-                variant="caption"
+            ) : (
+              <Box
+                key={i}
+                className="message-bubble-anim"
                 sx={{
-                  color: "#888",
-                  mt: 0.1,
-                  ml: m.sender === "me" ? "auto" : 0,
-                  mr: m.sender === "me" ? 0 : "auto",
-                  fontSize: 10,
-                  fontWeight: 400,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: m.sender === "me" ? "flex-end" : "flex-start",
+                  mb: 0.7,
                 }}
               >
-                {formatTime(m.time)}
-              </Typography>
-            </Box>
-          )
-        )}
-        <div ref={endRef} />
-      </Box>
+                {m.sender === "me" && (
+                  <Box
+                    sx={{
+                      fontSize: 9,
+                      color: "#4f8cff",
+                      fontWeight: 700,
+                      mb: 0.1,
+                      mr: 1,
+                    }}
+                  >
+                    You
+                  </Box>
+                )}
+                {m.sender === "peer" && (
+                  <Box
+                    sx={{
+                      fontSize: 9,
+                      color: "#888",
+                      fontWeight: 700,
+                      mb: 0.1,
+                      ml: 1,
+                    }}
+                  >
+                    Peer
+                  </Box>
+                )}
+                <Box
+                  sx={{
+                    bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
+                    color: m.sender === "me" ? "#fff" : "#333",
+                    px: 1.1,
+                    py: 0.5,
+                    borderRadius: 1.2,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    boxShadow: m.sender === "me" ? 1 : 0,
+                    display: "inline-block",
+                    maxWidth: 260,
+                    wordBreak: "break-word",
+                    transition: "all 0.3s",
+                  }}
+                >
+                  {m.text}
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "#888",
+                    mt: 0.1,
+                    ml: m.sender === "me" ? "auto" : 0,
+                    mr: m.sender === "me" ? 0 : "auto",
+                    fontSize: 10,
+                    fontWeight: 400,
+                  }}
+                >
+                  {formatTime(m.time)}
+                </Typography>
+              </Box>
+            )
+          )}
+          <div ref={endRef} />
+        </Box> {/* End of Message Display Area */}
+
+        {/* Typing Indicator */}
+        <Box sx={{ 
+          height: '10px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          mb: 0.5, 
+          ml: 0.5, // Original left margin for text padding
+          marginLeft: '3px', // Additional margin to account for the gradient strip
+          paddingLeft: '0.5px' // Align text with message box content which has p:0.5
+        }}>
+          {isPeerTyping && (
+            <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+              Peer is typing...
+            </Typography>
+          )}
+        </Box> {/* End of Typing Indicator */}
+      </Box> {/* End of NEW WRAPPER for Middle Section */}
+
       {/* Input Area */}
       <Box
         component="form"
-        onSubmit={onSendMessage}
+        onSubmit={handleSendMessage} // Changed to use the new handleSendMessage
         sx={{
-          mt: "auto",
           p: 1,
           bgcolor: "background.paper",
           borderTop: "1px solid",
@@ -335,7 +419,7 @@ const ChatInterface = ({
           <TextField
             fullWidth
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={handleInputChange} // Changed to use the new handleInputChange
             placeholder="Type a message..."
             disabled={!connectedPeerId || fileProgress.size > 0 || receivingFileProgress.size > 0}
             size="small"
@@ -345,7 +429,9 @@ const ChatInterface = ({
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                 e.preventDefault();
-                if (inputMessage.trim()) onSendMessage(e);
+                // The main submit is now handled by handleSendMessage via the form's onSubmit
+                // We can directly call it here if the form submission isn't triggered by Enter alone
+                if (inputMessage.trim()) handleSendMessage(e);
               }
             }}
             sx={{

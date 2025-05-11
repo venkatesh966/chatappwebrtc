@@ -54,6 +54,8 @@ const Chat = ({ boxWidth = 420 }) => {
     handleMuteToggle,
     formatTime,
     connectedPeerId,
+    isPeerTyping,
+    notifyTypingState,
   } = useChatLogic();
 
   const [peerIdToConnect, setPeerIdToConnect] = useState("");
@@ -77,7 +79,7 @@ const Chat = ({ boxWidth = 420 }) => {
         @keyframes fadeSlideIn {
           0% {
             opacity: 0;
-            transform: translateY(18px) scale(0.98);
+            transform: translateY(10px) scale(0.9);
           }
           100% {
             opacity: 1;
@@ -205,19 +207,50 @@ const Chat = ({ boxWidth = 420 }) => {
             ml: 0.5,
             display: "flex",
             alignItems: "center",
-            gap: 0.5,
+            gap: 0.8,
           }}
         >
-          Your ID:{" "}
-          <b style={{ color: "#fff", marginLeft: 4, fontWeight: 600 }}>
+          {/* Group for dot and "Your ID:" label */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {/* White circle background for the dot */}
+            <Box 
+              sx={{
+                width: 10, // Outer circle size
+                height: 10, // Outer circle size
+                borderRadius: '50%',
+                bgcolor: '#fff', // White background
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 0.7, // Space between white circle and "Your ID:" text
+                boxShadow: '0 0 2px rgba(0,0,0,0.2)', // Optional: subtle shadow for the white circle itself
+              }}
+            >
+              <Box // The green/grey status dot
+                component="span"
+                sx={{
+                  width: 6, // Inner dot size (smaller than outer circle)
+                  height: 6, // Inner dot size
+                  borderRadius: '50%',
+                  bgcolor: myId ? 'success.main' : 'grey.400',
+                  // boxShadow: myId ? '0 0 3px 0.5px rgba(76,175,80,0.5)' : 'none', // Shadow for inner dot can be removed or adjusted
+                  display: 'block', // Ensure it behaves as a block for centering
+                }}
+              />
+            </Box>
+            Your ID: {/* Text label */}
+          </Box>
+          
+          {/* Actual ID */}
+          <b style={{ color: "#fff", fontWeight: 600 }}>
             {myId}
           </b>
+
           <Tooltip title={copied ? "Copied!" : "Copy"} placement="top" arrow>
             <IconButton
               size="small"
               onClick={handleCopyId}
               sx={{
-                ml: 0.5,
                 color: "#fff",
                 bgcolor: "rgba(0,0,0,0.08)",
                 "&:hover": { bgcolor: "rgba(0,0,0,0.18)" },
@@ -242,7 +275,11 @@ const Chat = ({ boxWidth = 420 }) => {
         }}
       >
         {error && (
-          <Alert severity="error" sx={{ mb: 1 }}>
+          <Alert 
+            severity="error" 
+            sx={{ mb: 1 }}
+            onClose={() => setError("")}
+          >
             {error}
           </Alert>
         )}
@@ -271,6 +308,9 @@ const Chat = ({ boxWidth = 420 }) => {
             onStartCall={() => handleStartCall(connectedPeerId)}
             formatTime={formatTime}
             endRef={endRef}
+            isPeerTyping={isPeerTyping}
+            onNotifyTypingState={notifyTypingState}
+            connectedPeerIdForTyping={connectedPeerId}
           />
         )}
       </Box>

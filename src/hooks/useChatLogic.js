@@ -28,6 +28,8 @@ const useChatLogic = () => {
   const incomingRingtoneAudioRef = useRef(null);
   const outgoingRingingAudioRef = useRef(null);
   const noAnswerTimeoutRef = useRef(null); // Added for no-answer timeout
+  const [isPeerTyping, setIsPeerTyping] = useState(false); // State for peer typing status
+  const peerTypingTimeoutRef = useRef(null); // Ref for peer typing timeout
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -258,6 +260,12 @@ const useChatLogic = () => {
               ...prev,
               { text: data.content, sender: "peer", time: new Date() },
             ]);
+            // If peer sends a message, they are no longer typing
+            setIsPeerTyping(false);
+            if (peerTypingTimeoutRef.current) {
+              clearTimeout(peerTypingTimeoutRef.current);
+              peerTypingTimeoutRef.current = null;
+            }
             break;
           case "call_ringing_ack":
             if (callStatus === 'dialing') {
@@ -287,6 +295,30 @@ const useChatLogic = () => {
             setDisconnectReason(data.reason);
             setConnected(false);
             setIsConnecting(false);
+            setIsPeerTyping(false); // Reset peer typing on disconnect
+            if (peerTypingTimeoutRef.current) {
+              clearTimeout(peerTypingTimeoutRef.current);
+              peerTypingTimeoutRef.current = null;
+            }
+            break;
+          case "typing_started":
+            setIsPeerTyping(true);
+            // Clear previous timeout if any
+            if (peerTypingTimeoutRef.current) {
+              clearTimeout(peerTypingTimeoutRef.current);
+            }
+            // Set a timeout to automatically set isPeerTyping to false if no "typing_stopped" or new message comes
+            peerTypingTimeoutRef.current = setTimeout(() => {
+              setIsPeerTyping(false);
+              peerTypingTimeoutRef.current = null;
+            }, 3000); // Assume typing stopped after 3 seconds of no activity
+            break;
+          case "typing_stopped":
+            setIsPeerTyping(false);
+            if (peerTypingTimeoutRef.current) {
+              clearTimeout(peerTypingTimeoutRef.current);
+              peerTypingTimeoutRef.current = null;
+            }
             break;
           default:
             console.warn("Unknown message type:", data.type);
@@ -418,6 +450,10 @@ const useChatLogic = () => {
       if (noAnswerTimeoutRef.current) { // Clear no-answer timeout on unmount
         clearTimeout(noAnswerTimeoutRef.current);
         noAnswerTimeoutRef.current = null;
+      }
+      if (peerTypingTimeoutRef.current) { // Clear peer typing timeout on unmount
+        clearTimeout(peerTypingTimeoutRef.current);
+        peerTypingTimeoutRef.current = null;
       }
       pauseAudio(incomingRingtoneAudioRef);
       pauseAudio(outgoingRingingAudioRef);
@@ -658,6 +694,12 @@ const useChatLogic = () => {
     }
   };
 
+  const notifyTypingState = (peerId, isTyping) => {
+    if (peerId) {
+      WebRTCService.sendMessage(peerId, { type: isTyping ? "typing_started" : "typing_stopped" });
+    }
+  };
+
   // The 'peerId' state in this hook represents the *connected* peer's ID after successful connection.
   // For the input field, the Chat.jsx component will manage its own state, let's call it 'peerIdInput'.
   // The handleConnect function will take this 'peerIdInput' as an argument.
@@ -693,6 +735,8 @@ const useChatLogic = () => {
     handleStartCall, // Takes connectedPeerId
     handleEndCall,
     handleMuteToggle,
+    notifyTypingState, // Function to notify typing state
+    isPeerTyping, // Peer typing status
     formatTime,
     isToday,
     
