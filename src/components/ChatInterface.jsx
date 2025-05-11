@@ -321,13 +321,17 @@ const ChatInterface = ({
             onChange={onFileSelect}
             multiple
           />
-          <IconButton
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!connectedPeerId || fileProgress.size > 0 || receivingFileProgress.size > 0}
-            sx={{ color: "primary.main", p: 0.7 }}
-          >
-            <AttachFileIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          <Tooltip title="Attach files (max 330MB, max 3 files at a time)" arrow>
+            <span>
+              <IconButton
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!connectedPeerId || fileProgress.size > 0 || receivingFileProgress.size > 0}
+                sx={{ color: "primary.main", p: 0.7 }}
+              >
+                <AttachFileIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
           <TextField
             fullWidth
             value={inputMessage}

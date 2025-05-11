@@ -265,6 +265,11 @@ const useChatLogic = () => {
               playAudio(outgoingRingingAudioRef, true);
             }
             break;
+          case "session_full":
+            setError("The peer is already in a session with someone else.");
+            setConnected(false);
+            setIsConnecting(false);
+            break;
           case "disconnect":
             fileTimeouts.current.forEach((timeout) => {
               clearTimeout(timeout);

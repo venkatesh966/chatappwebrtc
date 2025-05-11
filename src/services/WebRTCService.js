@@ -29,6 +29,19 @@ class WebRTCService {
     });
 
     this.peer.on('connection', (conn) => {
+      // Check if already connected to someone
+      if (this.connections.size > 0) {
+        console.warn(`Already connected to a peer. Rejecting new connection from ${conn.peer}.`);
+        conn.on('open', () => { // Need to wait for open to send, otherwise it might fail
+          conn.send({ type: 'session_full', message: 'The peer is already in a session.' });
+          // Close the connection after a short delay to ensure message is sent
+          setTimeout(() => conn.close(), 100); 
+        });
+        // If 'open' never fires (e.g. network issue before full handshake), this connection won't be fully processed.
+        // We might not even need to manually close if we don't add it to this.connections.
+        // However, explicitly closing after sending message is safer.
+        return; // Do not proceed to _handleConnection
+      }
       this._handleConnection(conn);
     });
 

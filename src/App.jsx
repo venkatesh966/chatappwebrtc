@@ -19,18 +19,32 @@ function App() {
     >
       <h1
         style={{
-          marginTop: 38,
+          marginTop: 18,
           marginBottom: 18,
-          fontSize: 44,
+          fontSize: 40,
           fontWeight: 900,
           letterSpacing: 1.5,
-          color: '#fff',
-          textShadow: '0 6px 32px rgba(60,60,60,0.25), 0 1px 0 #3b6be0',
           fontFamily: 'inherit',
+          color: '#FFFFFF',
+          textShadow: '0 3px 8px rgba(0, 0, 0, 0.35)',
         }}
       >
         Vibe Connect
       </h1>
+      <p
+        style={{
+          marginTop: -10,
+          marginBottom: 8,
+          fontSize: 15,
+          fontWeight: 500,
+          color: '#F0F9FF',
+          textAlign: 'center',
+          letterSpacing: 0.5,
+          textShadow: '0 1px 4px rgba(0, 0, 0, 0.4)',
+        }}
+      >
+        Seamless Peer-to-Peer: File Sharing, Audio Calls & Chat
+      </p>
       <Chat boxWidth={550} />
     </div>
   )
