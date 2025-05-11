@@ -652,7 +652,7 @@ const useChatLogic = () => {
         }, NO_ANSWER_TIMEOUT_DURATION);
 
       } else {
-        pauseAudio(outgoingRingingAudioRef); // Ensure outgoing ringing stops if startCall fails immediately
+        pauseAudio(outgoingRingingAudioRef); 
         setCallStatus("error"); // Reset status
         setError("Failed to start call. Ensure peer is connected and available.");
         setMessages((prev) => [

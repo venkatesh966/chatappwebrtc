@@ -110,15 +110,13 @@ const Chat = ({ boxWidth = 420 }) => {
     if (files.length > 3) {
       setError("You can select a maximum of 3 files at a time.");
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // Clear the selection
+        fileInputRef.current.value = ""; 
       }
       return;
     }
 
-    setError(""); // Clear any previous errors
-
+    setError(""); 
     for (const file of files) {
-      // Ensure not to proceed if connection drops or an error occurs during one of the uploads
       if (!connectedPeerId || error) {
           console.warn("File upload iteration stopped due to disconnection or existing error.");
           break; 
@@ -127,7 +125,7 @@ const Chat = ({ boxWidth = 420 }) => {
     }
 
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Clear the selection after processing all files
+      fileInputRef.current.value = ""; 
     }
   };
 
@@ -210,38 +208,37 @@ const Chat = ({ boxWidth = 420 }) => {
             gap: 0.8,
           }}
         >
-          {/* Group for dot and "Your ID:" label */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {/* White circle background for the dot */}
+            
             <Box 
               sx={{
-                width: 10, // Outer circle size
-                height: 10, // Outer circle size
+                width: 10, 
+                height: 10, 
                 borderRadius: '50%',
-                bgcolor: '#fff', // White background
+                bgcolor: '#fff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                mr: 0.7, // Space between white circle and "Your ID:" text
-                boxShadow: '0 0 2px rgba(0,0,0,0.2)', // Optional: subtle shadow for the white circle itself
+                mr: 0.7,
+                boxShadow: '0 0 2px rgba(0,0,0,0.2)', 
               }}
             >
-              <Box // The green/grey status dot
+              <Box 
                 component="span"
                 sx={{
-                  width: 6, // Inner dot size (smaller than outer circle)
-                  height: 6, // Inner dot size
+                  width: 6, 
+                  height: 6, 
                   borderRadius: '50%',
                   bgcolor: myId ? 'success.main' : 'grey.400',
-                  // boxShadow: myId ? '0 0 3px 0.5px rgba(76,175,80,0.5)' : 'none', // Shadow for inner dot can be removed or adjusted
-                  display: 'block', // Ensure it behaves as a block for centering
+                 
+                  display: 'block', 
                 }}
               />
             </Box>
-            Your ID: {/* Text label */}
+            Your ID:
           </Box>
           
-          {/* Actual ID */}
+        
           <b style={{ color: "#fff", fontWeight: 600 }}>
             {myId}
           </b>

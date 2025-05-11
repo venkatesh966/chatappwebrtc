@@ -16,6 +16,15 @@ import CallIcon from "@mui/icons-material/Call";
 import Avatar from '@mui/material/Avatar';
 import DownloadIcon from '@mui/icons-material/Download';
 
+const formatBytes = (bytes, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 const ChatInterface = ({
   messages,
   inputMessage,
@@ -65,12 +74,12 @@ const ChatInterface = ({
     }
 
     if (message.trim().length > 0) {
-      onNotifyTypingState(connectedPeerIdForTyping, true); // Send typing_started
+      onNotifyTypingState(connectedPeerIdForTyping, true); 
       typingTimeoutRef.current = setTimeout(() => {
-        onNotifyTypingState(connectedPeerIdForTyping, false); // Send typing_stopped after delay
-      }, 2000); // 2 seconds delay
+        onNotifyTypingState(connectedPeerIdForTyping, false); 
+      }, 2000);
     } else {
-      // If message is empty (e.g., cleared), immediately send typing_stopped
+    
       onNotifyTypingState(connectedPeerIdForTyping, false);
     }
   };
@@ -82,8 +91,8 @@ const ChatInterface = ({
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
       }
-      onNotifyTypingState(connectedPeerIdForTyping, false); // Ensure typing_stopped is sent before message
-      onSendMessage(e); // This will also call setInputMessage("") which will trigger handleInputChange again if not careful
+      onNotifyTypingState(connectedPeerIdForTyping, false); 
+      onSendMessage(e); 
     }
   };
 
@@ -203,7 +212,7 @@ const ChatInterface = ({
       {Array.from(fileProgress.entries()).map(([fileId, progressData]) => (
         <Paper key={fileId} sx={{ p: 1, mb: 1, bgcolor: "#e3f2fd", borderRadius: 2 }}>
           <Typography variant="body2" sx={{ mb: 0.5, fontSize: 12 }}>
-            Sending: {progressData.fileName}
+            Sending: {progressData.fileName} {progressData.fileSize ? `(${formatBytes(progressData.fileSize)})` : ''}
           </Typography>
           <LinearProgress
             variant="determinate"
@@ -222,7 +231,7 @@ const ChatInterface = ({
       {Array.from(receivingFileProgress.entries()).map(([fileId, progressData]) => (
         <Paper key={fileId} sx={{ p: 1, mb: 1, bgcolor: "#e3f2fd", borderRadius: 2 }}>
           <Typography variant="body2" sx={{ mb: 0.5, fontSize: 12 }}>
-            Receiving: {progressData.fileName}
+            Receiving: {progressData.fileName} {progressData.fileSize ? `(${formatBytes(progressData.fileSize)})` : ''}
           </Typography>
           <LinearProgress
             variant="determinate"
@@ -253,32 +262,32 @@ const ChatInterface = ({
             bottom: 0,
             width: '3px',
             background: 'linear-gradient(to bottom, #4f8cff, #3ff57a)',
-            borderTopLeftRadius: (theme) => theme.spacing(1.5), // Match message box rounding (e.g., 6px)
-            borderBottomLeftRadius: (theme) => theme.spacing(1.5), // Match message box rounding
+            borderTopLeftRadius: (theme) => theme.spacing(1.5), 
+            borderBottomLeftRadius: (theme) => theme.spacing(1.5),
           }
         }}
       >
-        {/* Message Display Area (Scrollable) */}
+      
         <Box
           sx={{
             minHeight: 180,
             // maxHeight: 260,
             overflowY: "auto",
-            mb: 0.5, // Margin between messages and typing indicator
+            mb: 0.5,
             bgcolor: "white",
-            borderRadius: 1.5, // Applies to all corners initially
-            borderTopLeftRadius: 0, // Flatten top-left to meet gradient
-            borderBottomLeftRadius: 0, // Flatten bottom-left to meet gradient
+            borderRadius: 1.5, 
+            borderTopLeftRadius: 0,
+            borderBottomLeftRadius: 0,
             p: 0.5,
             border: "1px solid #e3e8f0",
-            borderLeft: 'none', // Gradient acts as the visual left border
-            flex: 1, // Allows this box to grow and scroll within the new wrapper
+            borderLeft: 'none', 
+            flex: 1,
             display: "flex",
             flexDirection: "column",
             fontSize: 13,
             boxShadow: "0 1px 4px 0 rgba(60,60,60,0.03)",
-            marginLeft: '3px', // Make space for the gradient from the wrapper
-            // Removed position: 'relative' and '&::before' from here
+            marginLeft: '3px', 
+         
           }}
         >
           {messages.length === 0 && (
@@ -297,20 +306,19 @@ const ChatInterface = ({
           )}
           {messages.map((m, i) => {
             if (m.isSystem) {
-              // Check for and hide consecutive duplicate "File ready" system messages
+            
               if (
-                m.fileData && // Current message is a file download offer
-                i > 0 && // There is a previous message
-                messages[i-1].isSystem && // Previous message is also a system message
-                messages[i-1].fileData && // Previous message also offered a file download
-                messages[i-1].fileData.name === m.fileData.name // Both are for the same file name
+                m.fileData && 
+                i > 0 && 
+                messages[i-1].isSystem && 
+                messages[i-1].fileData && 
+                messages[i-1].fileData.name === m.fileData.name 
               ) {
-                // This is a consecutive duplicate file download message, so don't render it.
-                // Log for debugging, can be removed later.
+              
                 console.log('[ChatInterface] Hiding duplicate file download message for:', m.fileData.name);
                 return null; 
               }
-              // Render non-duplicate system message (or system messages without fileData)
+            
               return (
                 <Box
                   key={i}

@@ -123,7 +123,7 @@ class WebRTCService {
   sendMessage(peerId, message) {
     const conn = this.connections.get(peerId);
     if (conn && conn.open) {
-      // If message is a string, wrap it in an object with type 'message'
+    
       const messageObj = typeof message === 'string' 
         ? { type: 'message', content: message }
         : message;
@@ -134,7 +134,7 @@ class WebRTCService {
   }
 
   setOnMessageCallback(cb) {
-    console.log("[WebRTCService] setOnMessageCallback called. New callback being set."); // Log when callback is set
+    console.log("[WebRTCService] setOnMessageCallback called. New callback being set."); 
     this.onMessageCallback = cb;
   }
 
@@ -250,13 +250,14 @@ class WebRTCService {
             }
           }
           
-          // Add a small delay between chunks to prevent overwhelming the connection
+        
           const delay = file.type.startsWith('image/') ? 10 : 20;
           await new Promise(r => setTimeout(r, delay));
 
           if (this.onFileProgressCallback) {
             this.onFileProgressCallback({
               fileName: file.name,
+              fileSize: file.size,
               progress: ((i + 1) / chunks) * 100,
               fileId: fileId
             });
@@ -285,7 +286,7 @@ class WebRTCService {
   }
 
   _handleBrowserClose() {
-    // Notify all connected peers before browser closes
+   
     this.connections.forEach((conn, peerId) => {
       if (conn && conn.open) {
         conn.send({ 
@@ -429,8 +430,7 @@ class WebRTCService {
       if (this.call && this.call.peer === callObject.peer) {
           this.call = null;
       }
-      // Note: We don't stop localStream here as it might be in use or wanted for a new call.
-      // The UI/logic in useChatLogic handles stopping sounds and stream if user confirms rejection.
+   
     }
     // No specific status callback here, useChatLogic handles UI changes upon rejection.
   }
