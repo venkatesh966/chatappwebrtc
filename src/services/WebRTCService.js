@@ -37,6 +37,15 @@ class WebRTCService {
     });
 
     this.peer.on('call', (call) => {
+      // Send acknowledgment that the call is ringing to the caller
+      const connToCaller = this.connections.get(call.peer);
+      if (connToCaller && connToCaller.open) {
+        connToCaller.send({ type: 'call_ringing_ack' });
+      } else {
+        console.warn("No open data connection to caller to send call_ringing_ack, peer:", call.peer);
+        // Proceeding with incoming call status anyway, caller might not get ringing feedback.
+      }
+
       if (this.onCallStatusCallback) {
         this.onCallStatusCallback('incoming', call);
       }
@@ -375,6 +384,21 @@ class WebRTCService {
     if (this.onCallStatusCallback) {
       this.onCallStatusCallback('ended');
     }
+  }
+
+  rejectCall(callObject) {
+    if (callObject) {
+      callObject.close();
+      console.log("Call rejected by peerId:", callObject.peer);
+      // If this was the active call, nullify it.
+      // This helps prevent issues if endCall() is called later for a call that was already rejected.
+      if (this.call && this.call.peer === callObject.peer) {
+          this.call = null;
+      }
+      // Note: We don't stop localStream here as it might be in use or wanted for a new call.
+      // The UI/logic in useChatLogic handles stopping sounds and stream if user confirms rejection.
+    }
+    // No specific status callback here, useChatLogic handles UI changes upon rejection.
   }
 
   toggleMute() {

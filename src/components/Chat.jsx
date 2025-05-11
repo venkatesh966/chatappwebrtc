@@ -42,6 +42,8 @@ const Chat = ({ boxWidth = 420 }) => {
     isMuted,
     callDuration,
     audioRef,
+    incomingRingtoneAudioRef,
+    outgoingRingingAudioRef,
     handleConnect,
     handleSendMessage: hookHandleSendMessage,
     handleEndSession,
@@ -266,6 +268,9 @@ const Chat = ({ boxWidth = 420 }) => {
         />
       )}
       <audio ref={audioRef} autoPlay />
+      {/* Audio elements for ringtones */}
+      <audio ref={incomingRingtoneAudioRef} src="/sounds/incoming_ringtone.mp3" loop />
+      <audio ref={outgoingRingingAudioRef} src="/sounds/outgoing_ringing.mp3" loop />
     </Paper>
   );
 };

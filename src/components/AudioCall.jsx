@@ -64,37 +64,60 @@ const AudioCall = ({
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (isCallActive) {
+    const activeCallStatuses = ['dialing', 'opponent_ringing', 'incoming_ringing', 'active'];
+    if (activeCallStatuses.includes(callStatus)) {
       setIsVisible(true);
-    } else {
-      // Add delay before hiding to show the end call animation
-      const timer = setTimeout(() => setIsVisible(false), 500);
+    } else if (isVisible) {
+      const timer = setTimeout(() => setIsVisible(false), 800);
       return () => clearTimeout(timer);
+    } else {
+      setIsVisible(false);
     }
-  }, [isCallActive]);
+  }, [callStatus, isVisible]);
 
   if (!isVisible) return null;
+
+  let statusText = 'Call Ended';
+  switch (callStatus) {
+    case 'dialing':
+      statusText = 'Dialing...';
+      break;
+    case 'opponent_ringing':
+      statusText = 'Ringing...';
+      break;
+    case 'incoming_ringing':
+      statusText = 'Incoming Call...';
+      break;
+    case 'active':
+      statusText = `Call Duration: ${callDuration}`;
+      break;
+    case 'error':
+      statusText = 'Call Error';
+      break;
+    case 'ended':
+    default:
+      statusText = 'Call Ended';
+      break;
+  }
 
   return (
     <CallContainer elevation={3}>
       <Typography variant="subtitle2" color="textSecondary">
-        {callStatus === 'connecting' ? 'Connecting...' : 
-         callStatus === 'active' ? `Call Duration: ${callDuration}` : 
-         'Call Ended'}
+        {statusText}
       </Typography>
       
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-        {callStatus === 'connecting' ? (
-          <CircularProgress size={24} />
+        {callStatus === 'dialing' ? (
+          <CircularProgress size={36} sx={{ margin: '8px' }}/>
         ) : (
           <>
-            <MuteButton onClick={onMuteToggle}>
+            <MuteButton onClick={onMuteToggle} disabled={!isCallActive}>
               <Tooltip title={isMuted ? "Unmute" : "Mute"}>
                 {isMuted ? <MicOffIcon /> : <MicIcon />}
               </Tooltip>
             </MuteButton>
             
-            {isCallActive ? (
+            {(isCallActive || callStatus === 'opponent_ringing' || callStatus === 'dialing') ? (
               <CallButton 
                 color="error" 
                 onClick={onEndCall}

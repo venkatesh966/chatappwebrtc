@@ -23,6 +23,8 @@ const useChatLogic = () => {
   const callStartTimeRef = useRef(null);
   const audioRef = useRef(null);
   const lastSentFileNameRef = useRef(null);
+  const incomingRingtoneAudioRef = useRef(null);
+  const outgoingRingingAudioRef = useRef(null);
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -241,6 +243,12 @@ const useChatLogic = () => {
               { text: data.content, sender: "peer", time: new Date() },
             ]);
             break;
+          case "call_ringing_ack":
+            if (callStatus === 'dialing') {
+              setCallStatus("opponent_ringing");
+              playAudio(outgoingRingingAudioRef, true);
+            }
+            break;
           case "disconnect":
             fileTimeouts.current.forEach((timeout) => {
               clearTimeout(timeout);
@@ -310,35 +318,41 @@ const useChatLogic = () => {
     });
     
     // Call status callback setup
-    WebRTCService.setOnCallStatusCallback((status, stream, errorMsg) => {
+    WebRTCService.setOnCallStatusCallback((status, streamOrCall, errorMsg) => {
       switch (status) {
         case "incoming":
+          setCallStatus("incoming_ringing");
+          playAudio(incomingRingtoneAudioRef, true);
           if (window.confirm("Incoming call. Accept?")) {
-            WebRTCService.answerCall(stream);
+            pauseAudio(incomingRingtoneAudioRef);
+            WebRTCService.answerCall(streamOrCall);
           } else {
-            WebRTCService.endCall(); // Reject call
+            pauseAudio(incomingRingtoneAudioRef);
+            WebRTCService.rejectCall(streamOrCall);
+            setCallStatus("ended");
           }
           break;
         case "connecting":
-          setCallStatus("connecting");
+          setCallStatus("dialing");
           break;
         case "active":
+          pauseAudio(incomingRingtoneAudioRef);
+          pauseAudio(outgoingRingingAudioRef);
           setIsCallActive(true);
           setCallStatus("active");
           startCallTimer();
-          if (audioRef.current && stream) {
-            audioRef.current.srcObject = stream;
+          if (audioRef.current && streamOrCall) {
+            audioRef.current.srcObject = streamOrCall;
             audioRef.current.play().catch(e => console.error("Error playing audio:", e));
           }
           break;
         case "ended":
+          pauseAudio(incomingRingtoneAudioRef);
+          pauseAudio(outgoingRingingAudioRef);
           setIsCallActive(false);
           setCallStatus("ended");
           stopCallTimer();
-          if (audioRef.current) {
-            audioRef.current.srcObject = null;
-          }
-          setMessages((prev) => [ // Add message when call ends
+          setMessages((prev) => [
             ...prev,
             {
               text: `Call ended at ${formatTime(new Date())}`,
@@ -349,6 +363,8 @@ const useChatLogic = () => {
           ]);
           break;
         case "error":
+          pauseAudio(incomingRingtoneAudioRef);
+          pauseAudio(outgoingRingingAudioRef);
           console.error("Call error:", errorMsg);
           setError(errorMsg?.message || "Call error occurred");
           setIsCallActive(false);
@@ -367,6 +383,8 @@ const useChatLogic = () => {
     return () => {
       fileTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       fileTimeouts.current.clear();
+      pauseAudio(incomingRingtoneAudioRef);
+      pauseAudio(outgoingRingingAudioRef);
       WebRTCService.endCall(); // Ensure call is ended on unmount
       stopCallTimer(); // Stop call timer
       WebRTCService.disconnect();
@@ -498,20 +516,23 @@ const useChatLogic = () => {
   const handleStartCall = async (currentPeerId) => { // Pass peerId
     if (currentPeerId) {
       setError(""); // Clear previous errors
+      setCallStatus("dialing"); // Set status to dialing immediately
       const success = await WebRTCService.startCall(currentPeerId);
       if (success) {
         setMessages((prev) => [
           ...prev,
           {
-            text: `Call started at ${formatTime(new Date())}`,
+            text: `Calling ${currentPeerId}...`, // Updated message
             sender: "system",
             isSystem: true,
             time: new Date(),
           },
         ]);
       } else {
+        pauseAudio(outgoingRingingAudioRef); // Ensure outgoing ringing stops if startCall fails immediately
+        setCallStatus("error"); // Reset status
         setError("Failed to start call. Ensure peer is connected and available.");
-        setMessages((prev) => [ // Also show error as a system message
+        setMessages((prev) => [
           ...prev,
           {
             text: "Failed to start call. Peer might not be available.",
@@ -527,6 +548,8 @@ const useChatLogic = () => {
   };
 
   const handleEndCall = () => {
+    pauseAudio(incomingRingtoneAudioRef); // Added
+    pauseAudio(outgoingRingingAudioRef); // Added
     WebRTCService.endCall();
     // Message for call ended is now handled in 'ended' status of setOnCallStatusCallback
   };
@@ -534,6 +557,28 @@ const useChatLogic = () => {
   const handleMuteToggle = () => {
     const newMuteState = WebRTCService.toggleMute();
     setIsMuted(newMuteState);
+  };
+
+  // Helper to safely play audio
+  const playAudio = async (audioRefInstance, loop = false) => {
+    if (audioRefInstance.current) {
+      audioRefInstance.current.loop = loop;
+      try {
+        await audioRefInstance.current.play();
+      } catch (error) {
+        console.warn("Error playing audio:", error);
+        // Autoplay may be blocked, user interaction might be needed
+        // Or the src might not be loaded yet.
+      }
+    }
+  };
+
+  // Helper to safely pause audio
+  const pauseAudio = (audioRefInstance) => {
+    if (audioRefInstance.current && !audioRefInstance.current.paused) {
+      audioRefInstance.current.pause();
+      audioRefInstance.current.currentTime = 0; // Reset audio to start
+    }
   };
 
   // The 'peerId' state in this hook represents the *connected* peer's ID after successful connection.
@@ -560,6 +605,8 @@ const useChatLogic = () => {
     isMuted,
     callDuration,
     audioRef, // For the <audio> element in Chat.jsx
+    incomingRingtoneAudioRef, // Added
+    outgoingRingingAudioRef, // Added
 
     handleConnect, // Takes peerIdToConnect (from input in Chat.jsx)
     handleSendMessage, // Takes connectedPeerId, messageContent
