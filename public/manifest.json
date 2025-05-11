@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Vibe Connect",
   "version": "1.1",
-  "description": "Peer-to-peer chat and audio call app as a Chrome extension. Connect securely with others through real-time messaging, file sharing, and high-quality audio calls. Enjoy seamless communication directly from your browser.",
+  "description": "Peer-to-peer chat and audio call app for secure, real-time communication via Chrome extension, with file sharing and messaging.",
   "background": {
     "service_worker": "background.js"
   },
