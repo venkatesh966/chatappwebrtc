@@ -311,6 +311,7 @@ const Chat = ({ boxWidth = 420 }) => {
             isPeerTyping={isPeerTyping}
             onNotifyTypingState={notifyTypingState}
             connectedPeerIdForTyping={connectedPeerId}
+            myId={myId}
           />
         )}
       </Box>

@@ -13,6 +13,7 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import CallIcon from "@mui/icons-material/Call";
+import Avatar from '@mui/material/Avatar';
 
 const ChatInterface = ({
   messages,
@@ -33,6 +34,7 @@ const ChatInterface = ({
   isPeerTyping,
   onNotifyTypingState,
   connectedPeerIdForTyping, // Renamed to avoid conflict if connectedPeerId prop has other uses
+  myId, // Added myId for avatars
 }) => {
   const typingTimeoutRef = useRef(null);
 
@@ -190,7 +192,13 @@ const ChatInterface = ({
           <LinearProgress
             variant="determinate"
             value={progressData.progress}
-            sx={{ height: 6, borderRadius: 2 }}
+            sx={{
+              height: 6, 
+              borderRadius: 2,
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: '#26A69A', // Dimmed green/teal color
+              },
+            }}
           />
         </Paper>
       ))}
@@ -203,7 +211,13 @@ const ChatInterface = ({
           <LinearProgress
             variant="determinate"
             value={progressData.progress}
-            sx={{ height: 6, borderRadius: 2 }}
+            sx={{
+              height: 6, 
+              borderRadius: 2,
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: '#26A69A', // Dimmed green/teal color
+              },
+            }}
           />
         </Paper>
       ))}
@@ -299,68 +313,80 @@ const ChatInterface = ({
                 className="message-bubble-anim"
                 sx={{
                   display: "flex",
-                  flexDirection: "column",
-                  alignItems: m.sender === "me" ? "flex-end" : "flex-start",
+                  flexDirection: m.sender === "me" ? "row-reverse" : "row",
+                  alignItems: "center",
                   mb: 0.7,
+                  gap: 0.8,
                 }}
               >
-                {m.sender === "me" && (
+                {/* Avatar */}
+                <Avatar 
+                  sx={{ width: 24, height: 24 }} // Reduced size, removed mb
+                  src={`https://api.dicebear.com/8.x/bottts/svg?seed=${m.sender === 'me' ? myId : connectedPeerIdForTyping}`}
+                />
+
+                {/* Message Content Wrapper */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: m.sender === 'me' ? 'flex-end' : 'flex-start' }}>
+                  {m.sender === "me" && (
+                    <Box
+                      sx={{
+                        fontSize: 9,
+                        color: "#4f8cff",
+                        fontWeight: 700,
+                        mb: 0.1,
+                        mr: m.sender === "me" ? 1 : 0, // Keep original margin if needed for alignment
+                        ml: m.sender === "peer" ? 1: 0,
+                      }}
+                    >
+                      You
+                    </Box>
+                  )}
+                  {m.sender === "peer" && (
+                    <Box
+                      sx={{
+                        fontSize: 9,
+                        color: "#888",
+                        fontWeight: 700,
+                        mb: 0.1,
+                        ml: m.sender === "peer" ? 1 : 0, // Keep original margin
+                        mr: m.sender === "me" ? 1 : 0,
+                      }}
+                    >
+                      Peer
+                    </Box>
+                  )}
                   <Box
                     sx={{
-                      fontSize: 9,
-                      color: "#4f8cff",
-                      fontWeight: 700,
-                      mb: 0.1,
-                      mr: 1,
+                      bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
+                      color: m.sender === "me" ? "#fff" : "#333",
+                      px: 1.1,
+                      py: 0.5,
+                      borderRadius: 1.2,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      boxShadow: m.sender === "me" ? 1 : 0,
+                      display: "inline-block",
+                      maxWidth: 260,
+                      wordBreak: "break-word",
+                      transition: "all 0.3s",
                     }}
                   >
-                    You
+                    {m.text}
                   </Box>
-                )}
-                {m.sender === "peer" && (
-                  <Box
+                  <Typography
+                    variant="caption"
                     sx={{
-                      fontSize: 9,
                       color: "#888",
-                      fontWeight: 700,
-                      mb: 0.1,
-                      ml: 1,
+                      mt: 0.1,
+                      ml: m.sender === "me" ? "auto" : 0,
+                      mr: m.sender === "me" ? 0 : "auto",
+                      fontSize: 10,
+                      fontWeight: 400,
                     }}
                   >
-                    Peer
-                  </Box>
-                )}
-                <Box
-                  sx={{
-                    bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
-                    color: m.sender === "me" ? "#fff" : "#333",
-                    px: 1.1,
-                    py: 0.5,
-                    borderRadius: 1.2,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    boxShadow: m.sender === "me" ? 1 : 0,
-                    display: "inline-block",
-                    maxWidth: 260,
-                    wordBreak: "break-word",
-                    transition: "all 0.3s",
-                  }}
-                >
-                  {m.text}
+                    {formatTime(m.time)}
+                  </Typography>
                 </Box>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "#888",
-                    mt: 0.1,
-                    ml: m.sender === "me" ? "auto" : 0,
-                    mr: m.sender === "me" ? 0 : "auto",
-                    fontSize: 10,
-                    fontWeight: 400,
-                  }}
-                >
-                  {formatTime(m.time)}
-                </Typography>
               </Box>
             )
           )}
