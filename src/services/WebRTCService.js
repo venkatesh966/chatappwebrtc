@@ -137,9 +137,9 @@ class WebRTCService {
 
     // Adjust file size limits based on file type
     const MAX_FILE_SIZE = {
-      'application/pdf': 200 * 1024 * 1024, // 200MB for PDFs
-      'image/': 50 * 1024 * 1024, // 50MB for images
-      'default': 100 * 1024 * 1024 // 100MB default
+      'application/pdf': 500 * 1024 * 1024, // 500MB for PDFs
+      'image/': 500 * 1024 * 1024, // 500MB for images
+      'default': 500 * 1024 * 1024 // 500MB default
     };
 
     // Determine the appropriate size limit

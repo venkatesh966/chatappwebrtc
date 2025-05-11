@@ -15,7 +15,7 @@ import { styled } from '@mui/material/styles';
 
 const CallContainer = styled(Paper)(({ theme }) => ({
   position: 'fixed',
-  bottom: '20px',
+  bottom: '80px',
   right: '20px',
   padding: theme.spacing(2),
   borderRadius: '15px',

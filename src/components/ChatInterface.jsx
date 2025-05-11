@@ -59,7 +59,7 @@ const ChatInterface = ({
               <Tooltip title="Start Call">
                 <IconButton
                   onClick={onStartCall}
-                  disabled={isCallActive} // Should already be covered by !isCallActive but good for safety
+                  disabled={isCallActive || !!fileProgress || !!receivingFileProgress}
                   size="small"
                   sx={{
                     bgcolor: "#43d672",
@@ -113,6 +113,7 @@ const ChatInterface = ({
             variant="outlined"
             color="error"
             onClick={onEndSession}
+            disabled={!!fileProgress || !!receivingFileProgress}
             sx={{
               fontSize: 10,
               fontWeight: 600,
@@ -308,7 +309,7 @@ const ChatInterface = ({
           />
           <IconButton
             onClick={() => fileInputRef.current?.click()}
-            disabled={!connectedPeerId} // Ensure connected before allowing file send
+            disabled={!connectedPeerId || !!fileProgress || !!receivingFileProgress}
             sx={{ color: "primary.main", p: 0.7 }}
           >
             <AttachFileIcon sx={{ fontSize: 18 }} />
@@ -318,7 +319,7 @@ const ChatInterface = ({
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Type a message..."
-            disabled={!connectedPeerId} // Ensure connected before allowing typing
+            disabled={!connectedPeerId || !!fileProgress || !!receivingFileProgress}
             size="small"
             multiline
             minRows={1}
@@ -340,7 +341,7 @@ const ChatInterface = ({
           />
           <IconButton
             type="submit"
-            disabled={!connectedPeerId || !inputMessage.trim()} // Ensure connected and message exists
+            disabled={!connectedPeerId || !inputMessage.trim() || !!fileProgress || !!receivingFileProgress}
             sx={{ color: "primary.main", fontSize: 20, p: 0.7 }}
           >
             <SendIcon sx={{ fontSize: 18 }} />
