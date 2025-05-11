@@ -401,22 +401,14 @@ class WebRTCService {
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
-      // Consider if localStream being present also implies a call was being set up or active
-      // For now, primarily relying on this.call
+     
     }
 
-    // Only send 'ended' status if a call was actually in progress or being torn down.
-    // This helps prevent "Call ended" messages when endCall is used for cleanup
-    // and no call was active (e.g., initial cleanup in strict mode).
+   
     if (this.onCallStatusCallback && callWasActive) {
       this.onCallStatusCallback('ended');
     } else if (this.onCallStatusCallback && !callWasActive) {
-      // If no call was active, but endCall was invoked, we might still want to
-      // ensure any UI related to an "active" call state is reset,
-      // without necessarily pushing a "Call ended" message.
-      // For now, we will only send 'ended' if callWasActive is true.
-      // Alternatively, one could introduce a different status like 'call_cleared' or similar
-      // if a distinction is needed.
+     
       console.log("WebRTCService.endCall invoked, but no active call (this.call was null). Not sending 'ended' status.");
     }
   }
@@ -425,8 +417,6 @@ class WebRTCService {
     if (callObject) {
       callObject.close();
       console.log("Call rejected by peerId:", callObject.peer);
-      // If this was the active call, nullify it.
-      // This helps prevent issues if endCall() is called later for a call that was already rejected.
       if (this.call && this.call.peer === callObject.peer) {
           this.call = null;
       }
