@@ -102,11 +102,30 @@ const Chat = ({ boxWidth = 420 }) => {
   };
 
   const handleLocalFileSelect = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    await hookHandleFileSelect(file, connectedPeerId);
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length > 3) {
+      setError("You can select a maximum of 3 files at a time.");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""; // Clear the selection
+      }
+      return;
+    }
+
+    setError(""); // Clear any previous errors
+
+    for (const file of files) {
+      // Ensure not to proceed if connection drops or an error occurs during one of the uploads
+      if (!connectedPeerId || error) {
+          console.warn("File upload iteration stopped due to disconnection or existing error.");
+          break; 
+      }
+      await hookHandleFileSelect(file, connectedPeerId);
+    }
+
     if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+      fileInputRef.current.value = ""; // Clear the selection after processing all files
     }
   };
 

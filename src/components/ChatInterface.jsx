@@ -59,7 +59,7 @@ const ChatInterface = ({
               <Tooltip title="Start Call">
                 <IconButton
                   onClick={onStartCall}
-                  disabled={isCallActive || !!fileProgress || !!receivingFileProgress}
+                  disabled={isCallActive || fileProgress.size > 0 || receivingFileProgress.size > 0}
                   size="small"
                   sx={{
                     bgcolor: "#43d672",
@@ -113,7 +113,7 @@ const ChatInterface = ({
             variant="outlined"
             color="error"
             onClick={onEndSession}
-            disabled={!!fileProgress || !!receivingFileProgress}
+            disabled={fileProgress.size > 0 || receivingFileProgress.size > 0}
             sx={{
               fontSize: 10,
               fontWeight: 600,
@@ -142,19 +142,32 @@ const ChatInterface = ({
         </Box>
       )}
       {/* File Progress */}
-      {(fileProgress || receivingFileProgress) && (
-        <Paper sx={{ p: 1, mb: 1, bgcolor: "#e3f2fd", borderRadius: 2 }}>
+      {/* Sending Files Progress */}
+      {Array.from(fileProgress.entries()).map(([fileId, progressData]) => (
+        <Paper key={fileId} sx={{ p: 1, mb: 1, bgcolor: "#e3f2fd", borderRadius: 2 }}>
           <Typography variant="body2" sx={{ mb: 0.5, fontSize: 12 }}>
-            {fileProgress ? "Sending" : "Receiving"}{" "}
-            {fileProgress?.fileName || receivingFileProgress?.fileName}
+            Sending: {progressData.fileName}
           </Typography>
           <LinearProgress
             variant="determinate"
-            value={fileProgress?.progress || receivingFileProgress?.progress}
+            value={progressData.progress}
             sx={{ height: 6, borderRadius: 2 }}
           />
         </Paper>
-      )}
+      ))}
+      {/* Receiving Files Progress */}
+      {Array.from(receivingFileProgress.entries()).map(([fileId, progressData]) => (
+        <Paper key={fileId} sx={{ p: 1, mb: 1, bgcolor: "#e3f2fd", borderRadius: 2 }}>
+          <Typography variant="body2" sx={{ mb: 0.5, fontSize: 12 }}>
+            Receiving: {progressData.fileName}
+          </Typography>
+          <LinearProgress
+            variant="determinate"
+            value={progressData.progress}
+            sx={{ height: 6, borderRadius: 2 }}
+          />
+        </Paper>
+      ))}
       <Box
         sx={{
           minHeight: 180,
@@ -310,7 +323,7 @@ const ChatInterface = ({
           />
           <IconButton
             onClick={() => fileInputRef.current?.click()}
-            disabled={!connectedPeerId || !!fileProgress || !!receivingFileProgress}
+            disabled={!connectedPeerId || fileProgress.size > 0 || receivingFileProgress.size > 0}
             sx={{ color: "primary.main", p: 0.7 }}
           >
             <AttachFileIcon sx={{ fontSize: 18 }} />
@@ -320,7 +333,7 @@ const ChatInterface = ({
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Type a message..."
-            disabled={!connectedPeerId || !!fileProgress || !!receivingFileProgress}
+            disabled={!connectedPeerId || fileProgress.size > 0 || receivingFileProgress.size > 0}
             size="small"
             multiline
             minRows={1}
@@ -342,7 +355,7 @@ const ChatInterface = ({
           />
           <IconButton
             type="submit"
-            disabled={!connectedPeerId || !inputMessage.trim() || !!fileProgress || !!receivingFileProgress}
+            disabled={!connectedPeerId || !inputMessage.trim() || fileProgress.size > 0 || receivingFileProgress.size > 0}
             sx={{ color: "primary.main", fontSize: 20, p: 0.7 }}
           >
             <SendIcon sx={{ fontSize: 18 }} />

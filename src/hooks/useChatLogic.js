@@ -13,8 +13,8 @@ const useChatLogic = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [fileProgress, setFileProgress] = useState(null);
-  const [receivingFileProgress, setReceivingFileProgress] = useState(null);
+  const [fileProgress, setFileProgress] = useState(new Map());
+  const [receivingFileProgress, setReceivingFileProgress] = useState(new Map());
   const [receivedFiles, setReceivedFiles] = useState(new Map());
   const fileTimeouts = useRef(new Map());
   const [isCallActive, setIsCallActive] = useState(false);
@@ -71,7 +71,11 @@ const useChatLogic = () => {
             newFiles.delete(data.fileId);
             return newFiles;
           });
-          setReceivingFileProgress(null);
+          setReceivingFileProgress((prevMap) => {
+            const newMap = new Map(prevMap);
+            newMap.delete(data.fileId);
+            return newMap;
+          });
         }, 5 * 60 * 1000);
         fileTimeouts.current.set(data.fileId, timeout);
         setReceivedFiles((prev) =>
@@ -87,11 +91,12 @@ const useChatLogic = () => {
             lastChunkTime: Date.now(),
           })
         );
-        setReceivingFileProgress({
-          fileName: data.name,
-          progress: 0,
-          fileId: data.fileId,
-        });
+        setReceivingFileProgress((prevMap) => 
+          new Map(prevMap).set(data.fileId, { 
+            fileName: data.name, 
+            progress: 0 
+          })
+        );
         setMessages((prev) => [
           ...prev,
           {
@@ -121,10 +126,10 @@ const useChatLogic = () => {
             file.chunks[data.index] = data.chunk;
             file.receivedChunks++;
             const progress = (file.receivedChunks / file.totalChunks) * 100;
-            setReceivingFileProgress({
-              fileName: file.name,
-              progress: progress,
-              fileId: data.fileId,
+            setReceivingFileProgress((prevMap) => {
+              const newMap = new Map(prevMap);
+              newMap.set(data.fileId, { fileName: file.name, progress: progress });
+              return newMap;
             });
             if (fileTimeouts.current.has(data.fileId)) {
               clearTimeout(fileTimeouts.current.get(data.fileId));
@@ -143,7 +148,11 @@ const useChatLogic = () => {
                   newFiles.delete(data.fileId);
                   return newFiles;
                 });
-                setReceivingFileProgress(null);
+                setReceivingFileProgress((prevMap) => {
+                  const newMap = new Map(prevMap);
+                  newMap.delete(data.fileId);
+                  return newMap;
+                });
               }, 30000);
               fileTimeouts.current.set(data.fileId, timeout);
             }
@@ -218,7 +227,11 @@ const useChatLogic = () => {
                   },
                 ]);
               }
-              setReceivingFileProgress(null);
+              setReceivingFileProgress((prevMap) => {
+                const newMap = new Map(prevMap);
+                newMap.delete(data.fileId);
+                return newMap;
+              });
             } catch (err) {
               console.error("Error creating file:", err);
               setMessages((prev) => [
@@ -281,25 +294,29 @@ const useChatLogic = () => {
       }
     });
 
-    WebRTCService.setOnFileProgressCallback(({ fileName, progress }) => {
-      setFileProgress({ fileName, progress });
+    WebRTCService.setOnFileProgressCallback(({ fileName, progress, fileId }) => {
+      setFileProgress((prevMap) => {
+        const newMap = new Map(prevMap);
+        newMap.set(fileId, { fileName, progress });
+        return newMap;
+      });
+
       if (progress === 100) {
         setTimeout(() => {
-          setFileProgress(null);
-          if (lastSentFileNameRef.current) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                text: lastSentFileNameRef.current
-                  ? `File sent: ${lastSentFileNameRef.current}`
-                  : "File sent",
-                sender: "system",
-                isSystem: true,
-                time: new Date(),
-              },
-            ]);
-            lastSentFileNameRef.current = null;
-          }
+          setFileProgress((prevMap) => {
+            const newMap = new Map(prevMap);
+            newMap.delete(fileId);
+            return newMap;
+          });
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: `File sent: ${fileName}`,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
         }, 1000);
       }
     });
@@ -487,7 +504,7 @@ const useChatLogic = () => {
     try {
       setError(""); // Clear previous errors
       await WebRTCService.sendFile(currentPeerId, file);
-      lastSentFileNameRef.current = file.name;
+      // lastSentFileNameRef.current = file.name; // This is now handled by onFileProgressCallback
     } catch (err) {
       let errorMessage = "Failed to send file: ";
       if (err.message.includes("exceeds limit")) {
