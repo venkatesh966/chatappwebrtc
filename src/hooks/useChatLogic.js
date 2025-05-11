@@ -30,6 +30,7 @@ const useChatLogic = () => {
   const noAnswerTimeoutRef = useRef(null); // Added for no-answer timeout
   const [isPeerTyping, setIsPeerTyping] = useState(false); // State for peer typing status
   const peerTypingTimeoutRef = useRef(null); // Ref for peer typing timeout
+  const processedFileDownloadsRef = useRef(new Set()); // Ref to track processed file downloads
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -99,15 +100,6 @@ const useChatLogic = () => {
             progress: 0 
           })
         );
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: `Received file: ${data.name}`,
-            sender: "system",
-            isSystem: true,
-            time: new Date(),
-          },
-        ]);
         return;
       }
 
@@ -169,84 +161,106 @@ const useChatLogic = () => {
           console.error("Invalid file completion data:", data);
           return;
         }
+
+        // Prevent duplicate processing of the fileComplete event
+        if (processedFileDownloadsRef.current.has(data.fileId)) {
+          console.warn(`[useChatLogic] fileComplete for fileId ${data.fileId} already processed. Skipping duplicate message/download.`);
+          // It's possible the file was already cleaned up from receivedFiles if this is a true duplicate event later on.
+          // Ensure progress bar is also cleaned up if it lingered due to an odd state.
+          setReceivingFileProgress((prevMap) => {
+            const newMap = new Map(prevMap);
+            if (newMap.has(data.fileId)) {
+                newMap.delete(data.fileId);
+                console.log(`[useChatLogic] Cleaned up lingering progress for duplicate fileComplete: ${data.fileId}`);
+            }
+            return newMap;
+          });
+          return; 
+        }
+        // Mark as processed for this specific event instance.
+        // This helps if the event itself is fired multiple times by the underlying library for any reason.
+        processedFileDownloadsRef.current.add(data.fileId);
+        console.log(`[useChatLogic] Started processing fileComplete for fileId ${data.fileId}`);
+
+
         setReceivedFiles((prev) => {
           const newFiles = new Map(prev);
           const file = newFiles.get(data.fileId);
+
           if (file) {
             try {
-              cleanupFileTransfer(data.fileId);
-              const validChunks = file.chunks.filter(
-                (chunk) => chunk !== undefined
-              );
+              cleanupFileTransfer(data.fileId); // Clear any pending timeout for this file
+
+              const validChunks = file.chunks.filter((chunk) => chunk !== undefined);
               if (validChunks.length !== file.totalChunks) {
-                const missingChunks = file.totalChunks - validChunks.length;
-                throw new Error(
-                  `Missing ${missingChunks} chunks out of ${file.totalChunks}`
-                );
-              }
-              for (let i = 0; i < file.chunks.length; i++) {
-                if (file.chunks[i] === undefined) {
-                  throw new Error(`Missing chunk at index ${i}`);
-                }
+                throw new Error(`File assembly error: Missing ${file.totalChunks - validChunks.length} chunks for ${file.name}`);
               }
               const blob = new Blob(validChunks, { type: file.mimeType });
               if (blob.size !== file.size) {
-                throw new Error(
-                  `File size mismatch: received ${blob.size} bytes, expected ${file.size} bytes`
-                );
+                throw new Error(`File size mismatch for ${file.name}: received ${blob.size}, expected ${file.size}`);
               }
-              if (!blob.type.startsWith(file.mimeType.split("/")[0])) {
-                throw new Error(
-                  `File type mismatch: received ${blob.type}, expected ${file.mimeType}`
-                );
-              }
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = file.name;
-              a.click();
-              URL.revokeObjectURL(url);
-              const transferTime = (
-                (Date.now() - file.startTime) /
-                1000
-              ).toFixed(1);
-              const speed = (
-                file.size /
-                (1024 * 1024) /
-                (transferTime / 60)
-              ).toFixed(2); // MB/min
-              if (peerId && peerId !== myId) { // peerId here refers to the connected peer's ID, from state
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    text: `Received file: ${file.name} (${(
-                      file.size /
-                      (1024 * 1024)
-                    ).toFixed(2)}MB in ${transferTime}s, ${speed}MB/min)`,
-                    sender: "system",
-                    isSystem: true,
-                    time: new Date(),
-                  },
-                ]);
-              }
-              setReceivingFileProgress((prevMap) => {
-                const newMap = new Map(prevMap);
-                newMap.delete(data.fileId);
-                return newMap;
-              });
-            } catch (err) {
-              console.error("Error creating file:", err);
-              setMessages((prev) => [
-                ...prev,
+
+              // Add system message for manual download
+              setMessages((prevMsgs) => [
+                ...prevMsgs,
                 {
-                  text: `Error receiving file: ${file.name} - ${err.message}`,
+                  text: `File ready: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)}MB). Click Download button.`,
+                  sender: "system",
+                  isSystem: true,
+                  time: new Date(),
+                  fileData: { // For "Download" button
+                    blob: blob,
+                    name: file.name,
+                  }
+                },
+              ]);
+
+              setReceivingFileProgress((prevMap) => {
+                const map = new Map(prevMap);
+                map.delete(data.fileId);
+                return map;
+              });
+              
+              newFiles.delete(data.fileId); // Remove from the map of files being received
+              // We keep data.fileId in processedFileDownloadsRef to prevent reprocessing this specific fileComplete event.
+              // It's cleared on unmount. If a new file with the exact same ID were to come later (highly unlikely),
+              // it would be blocked unless this ref is managed more granularly (e.g., with TTL or explicit removal).
+
+            } catch (err) {
+              console.error("[useChatLogic] Error during file completion processing:", err);
+              setMessages((prevMsgs) => [
+                ...prevMsgs,
+                {
+                  text: `Error processing received file: ${file.name} - ${err.message}`,
                   sender: "system",
                   isSystem: true,
                   time: new Date(),
                 },
               ]);
+              // Ensure cleanup even on error
+              newFiles.delete(data.fileId);
+              setReceivingFileProgress((prevMap) => {
+                const map = new Map(prevMap);
+                map.delete(data.fileId);
+                return map;
+              });
             }
-            newFiles.delete(data.fileId);
+          } else {
+            console.warn(`[useChatLogic] fileComplete received for ${data.fileId}, but file info not found in receivedFiles. It might have been cleared by a timeout or already processed.`);
+            // If file info is gone, we can't create a blob or message for it.
+            // Ensure its progress bar is cleared if it wasn't.
+            setReceivingFileProgress((prevMap) => {
+                const map = new Map(prevMap);
+                if (map.has(data.fileId)) {
+                    map.delete(data.fileId);
+                    console.log(`[useChatLogic] Cleaned up lingering progress for missing file info: ${data.fileId}`);
+                }
+                return map;
+            });
+             // Since we added to processedFileDownloadsRef at the top, and can't process this,
+             // remove it to allow a potential legitimate (though unlikely) future retry if needed.
+             // However, this path indicates an issue, likely a race condition with timeouts.
+            processedFileDownloadsRef.current.delete(data.fileId);
           }
           return newFiles;
         });
@@ -455,6 +469,7 @@ const useChatLogic = () => {
         clearTimeout(peerTypingTimeoutRef.current);
         peerTypingTimeoutRef.current = null;
       }
+      processedFileDownloadsRef.current.clear(); // Clear on unmount
       pauseAudio(incomingRingtoneAudioRef);
       pauseAudio(outgoingRingingAudioRef);
       WebRTCService.endCall(); // Ensure call is ended on unmount

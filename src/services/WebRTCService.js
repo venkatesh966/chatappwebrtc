@@ -78,6 +78,10 @@ class WebRTCService {
     });
 
     conn.on('data', (data) => {
+      console.log("[WebRTCService] Received data:", JSON.stringify(data)); // Log all incoming data
+      if (data && data.type === 'fileComplete') {
+        console.log("[WebRTCService] Received fileComplete event for fileId:", data.fileId);
+      }
       if (this.onMessageCallback) this.onMessageCallback(data);
     });
 
@@ -130,6 +134,7 @@ class WebRTCService {
   }
 
   setOnMessageCallback(cb) {
+    console.log("[WebRTCService] setOnMessageCallback called. New callback being set."); // Log when callback is set
     this.onMessageCallback = cb;
   }
 
@@ -259,6 +264,7 @@ class WebRTCService {
         }
 
         // Send completion message
+        console.log(`[WebRTCService - Sender] Sending fileComplete for fileId: ${fileId}, fileName: ${file.name}`); // Log before sending
         conn.send({
           type: 'fileComplete',
           fileName: file.name,

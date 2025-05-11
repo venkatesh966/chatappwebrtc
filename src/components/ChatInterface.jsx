@@ -14,6 +14,7 @@ import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import CallIcon from "@mui/icons-material/Call";
 import Avatar from '@mui/material/Avatar';
+import DownloadIcon from '@mui/icons-material/Download';
 
 const ChatInterface = ({
   messages,
@@ -37,6 +38,21 @@ const ChatInterface = ({
   myId, // Added myId for avatars
 }) => {
   const typingTimeoutRef = useRef(null);
+
+  const handleManualDownload = (blob, fileName) => {
+    if (!blob || !fileName) {
+      console.error("Manual download failed: blob or fileName missing");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a); // Safari might require the link to be in the body
+    a.click();
+    document.body.removeChild(a); // Clean up
+    URL.revokeObjectURL(url);
+  };
 
   const handleInputChange = (e) => {
     const message = e.target.value;
@@ -279,117 +295,151 @@ const ChatInterface = ({
               Say hello to your peer!
             </Typography>
           )}
-          {messages.map((m, i) =>
-            m.isSystem ? (
-              <Box
-                key={i}
-                className="message-bubble-anim"
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  mb: 0.5,
-                }}
-              >
+          {messages.map((m, i) => {
+            if (m.isSystem) {
+              // Check for and hide consecutive duplicate "File ready" system messages
+              if (
+                m.fileData && // Current message is a file download offer
+                i > 0 && // There is a previous message
+                messages[i-1].isSystem && // Previous message is also a system message
+                messages[i-1].fileData && // Previous message also offered a file download
+                messages[i-1].fileData.name === m.fileData.name // Both are for the same file name
+              ) {
+                // This is a consecutive duplicate file download message, so don't render it.
+                // Log for debugging, can be removed later.
+                console.log('[ChatInterface] Hiding duplicate file download message for:', m.fileData.name);
+                return null; 
+              }
+              // Render non-duplicate system message (or system messages without fileData)
+              return (
                 <Box
+                  key={i}
+                  className="message-bubble-anim"
                   sx={{
-                    bgcolor: "#f3f4f6",
-                    color: "#888",
-                    px: 1.2,
-                    py: 0.3,
-                    borderRadius: 1,
-                    maxWidth: "75%",
-                    fontSize: 12,
-                    wordBreak: "break-word",
-                    fontStyle: "italic",
-                    transition: "all 0.3s",
+                    display: "flex",
+                    justifyContent: "center",
+                    mb: 0.5,
+                    width: '100%',
                   }}
                 >
-                  {m.text}
-                </Box>
-              </Box>
-            ) : (
-              <Box
-                key={i}
-                className="message-bubble-anim"
-                sx={{
-                  display: "flex",
-                  flexDirection: m.sender === "me" ? "row-reverse" : "row",
-                  alignItems: "center",
-                  mb: 0.7,
-                  gap: 0.8,
-                }}
-              >
-                {/* Avatar */}
-                <Avatar 
-                  sx={{ width: 24, height: 24 }} // Reduced size, removed mb
-                  src={`https://api.dicebear.com/8.x/bottts/svg?seed=${m.sender === 'me' ? myId : connectedPeerIdForTyping}`}
-                />
-
-                {/* Message Content Wrapper */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: m.sender === 'me' ? 'flex-end' : 'flex-start' }}>
-                  {m.sender === "me" && (
-                    <Box
-                      sx={{
-                        fontSize: 9,
-                        color: "#4f8cff",
-                        fontWeight: 700,
-                        mb: 0.1,
-                        mr: m.sender === "me" ? 1 : 0, // Keep original margin if needed for alignment
-                        ml: m.sender === "peer" ? 1: 0,
-                      }}
-                    >
-                      You
-                    </Box>
-                  )}
-                  {m.sender === "peer" && (
-                    <Box
-                      sx={{
-                        fontSize: 9,
-                        color: "#888",
-                        fontWeight: 700,
-                        mb: 0.1,
-                        ml: m.sender === "peer" ? 1 : 0, // Keep original margin
-                        mr: m.sender === "me" ? 1 : 0,
-                      }}
-                    >
-                      Peer
-                    </Box>
-                  )}
                   <Box
                     sx={{
-                      bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
-                      color: m.sender === "me" ? "#fff" : "#333",
-                      px: 1.1,
-                      py: 0.5,
-                      borderRadius: 1.2,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      boxShadow: m.sender === "me" ? 1 : 0,
-                      display: "inline-block",
-                      maxWidth: 260,
+                      bgcolor: "#f3f4f6",
+                      color: "#888",
+                      px: 1.2,
+                      py: 0.3,
+                      borderRadius: 1,
+                      maxWidth: "85%",
+                      fontSize: 12,
                       wordBreak: "break-word",
+                      fontStyle: "italic",
                       transition: "all 0.3s",
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
                     }}
                   >
                     {m.text}
+                    {m.fileData && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => handleManualDownload(m.fileData.blob, m.fileData.name)}
+                        sx={{ mt: 0.5, fontSize: 10, py: 0.2, px: 0.8, textTransform: 'none' }}
+                      >
+                        Download
+                      </Button>
+                    )}
                   </Box>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "#888",
-                      mt: 0.1,
-                      ml: m.sender === "me" ? "auto" : 0,
-                      mr: m.sender === "me" ? 0 : "auto",
-                      fontSize: 10,
-                      fontWeight: 400,
-                    }}
-                  >
-                    {formatTime(m.time)}
-                  </Typography>
                 </Box>
-              </Box>
-            )
-          )}
+              );
+            } else {
+              // Render user/peer messages (existing logic with avatars)
+              return (
+                <Box
+                  key={i}
+                  className="message-bubble-anim"
+                  sx={{
+                    display: "flex",
+                    flexDirection: m.sender === "me" ? "row-reverse" : "row",
+                    alignItems: "center",
+                    mb: 0.7,
+                    gap: 0.8,
+                  }}
+                >
+                  {/* Avatar */}
+                  <Avatar 
+                    sx={{ width: 24, height: 24 }} // Reduced size, removed mb
+                    src={`https://api.dicebear.com/8.x/bottts/svg?seed=${m.sender === 'me' ? myId : connectedPeerIdForTyping}`}
+                  />
+
+                  {/* Message Content Wrapper */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: m.sender === 'me' ? 'flex-end' : 'flex-start' }}>
+                    {m.sender === "me" && (
+                      <Box
+                        sx={{
+                          fontSize: 9,
+                          color: "#4f8cff",
+                          fontWeight: 700,
+                          mb: 0.1,
+                          mr: m.sender === "me" ? 1 : 0, // Keep original margin if needed for alignment
+                          ml: m.sender === "peer" ? 1: 0,
+                        }}
+                      >
+                        You
+                      </Box>
+                    )}
+                    {m.sender === "peer" && (
+                      <Box
+                        sx={{
+                          fontSize: 9,
+                          color: "#888",
+                          fontWeight: 700,
+                          mb: 0.1,
+                          ml: m.sender === "peer" ? 1 : 0, // Keep original margin
+                          mr: m.sender === "me" ? 1 : 0,
+                        }}
+                      >
+                        Peer
+                      </Box>
+                    )}
+                    <Box
+                      sx={{
+                        bgcolor: m.sender === "me" ? "#4f8cff" : "#f5f5f5",
+                        color: m.sender === "me" ? "#fff" : "#333",
+                        px: 1.1,
+                        py: 0.5,
+                        borderRadius: 1.2,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        boxShadow: m.sender === "me" ? 1 : 0,
+                        display: "inline-block",
+                        maxWidth: 260,
+                        wordBreak: "break-word",
+                        transition: "all 0.3s",
+                      }}
+                    >
+                      {m.text}
+                    </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "#888",
+                        mt: 0.1,
+                        ml: m.sender === "me" ? "auto" : 0,
+                        mr: m.sender === "me" ? 0 : "auto",
+                        fontSize: 10,
+                        fontWeight: 400,
+                      }}
+                    >
+                      {formatTime(m.time)}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            }
+          })}
           <div ref={endRef} />
         </Box> {/* End of Message Display Area */}
 
