@@ -143,7 +143,7 @@ const Chat = ({ boxWidth = 420 }) => {
       elevation={8}
       sx={{
         width: { xs: "98vw", sm: boxWidth, md: boxWidth },
-        minHeight: { xs: "80vh", sm: 480, md: 520 },
+        minHeight: { xs: "80vh", sm: 560, md: 580 },
         maxHeight: { xs: "98vh", sm: 600, md: 650 },
         mx: "auto",
         borderRadius: 4,

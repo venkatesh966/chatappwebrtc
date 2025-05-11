@@ -262,7 +262,7 @@ const ChatInterface = ({
         <Box
           sx={{
             minHeight: 180,
-            maxHeight: 260,
+            // maxHeight: 260,
             overflowY: "auto",
             mb: 0.5, // Margin between messages and typing indicator
             bgcolor: "white",
