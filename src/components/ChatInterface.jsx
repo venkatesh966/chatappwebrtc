@@ -306,6 +306,7 @@ const ChatInterface = ({
             ref={fileInputRef}
             style={{ display: "none" }}
             onChange={onFileSelect}
+            multiple
           />
           <IconButton
             onClick={() => fileInputRef.current?.click()}

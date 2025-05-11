@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import WebRTCService from "../services/WebRTCService";
 
+const NO_ANSWER_TIMEOUT_DURATION = 15000; // 15 seconds
+
 const useChatLogic = () => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -25,6 +27,7 @@ const useChatLogic = () => {
   const lastSentFileNameRef = useRef(null);
   const incomingRingtoneAudioRef = useRef(null);
   const outgoingRingingAudioRef = useRef(null);
+  const noAnswerTimeoutRef = useRef(null); // Added for no-answer timeout
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -319,6 +322,13 @@ const useChatLogic = () => {
     
     // Call status callback setup
     WebRTCService.setOnCallStatusCallback((status, streamOrCall, errorMsg) => {
+      // Clear no-answer timeout if call becomes active, ends, or errors out
+      if (noAnswerTimeoutRef.current && (status === 'active' || status === 'ended' || status === 'error')) {
+        clearTimeout(noAnswerTimeoutRef.current);
+        noAnswerTimeoutRef.current = null;
+        console.log("No answer timeout cleared due to call status change:", status);
+      }
+
       switch (status) {
         case "incoming":
           setCallStatus("incoming_ringing");
@@ -383,6 +393,10 @@ const useChatLogic = () => {
     return () => {
       fileTimeouts.current.forEach((timeout) => clearTimeout(timeout));
       fileTimeouts.current.clear();
+      if (noAnswerTimeoutRef.current) { // Clear no-answer timeout on unmount
+        clearTimeout(noAnswerTimeoutRef.current);
+        noAnswerTimeoutRef.current = null;
+      }
       pauseAudio(incomingRingtoneAudioRef);
       pauseAudio(outgoingRingingAudioRef);
       WebRTCService.endCall(); // Ensure call is ended on unmount
@@ -443,6 +457,11 @@ const useChatLogic = () => {
     WebRTCService.disconnect(); // This will trigger the 'disconnect' message via onMessageCallback
     setDisconnectReason("user_disconnect");
     setConnected(false);
+    // Clear no-answer timeout if a session is ended abruptly
+    if (noAnswerTimeoutRef.current) {
+      clearTimeout(noAnswerTimeoutRef.current);
+      noAnswerTimeoutRef.current = null;
+    }
     // Clear messages after a short delay to allow disconnect message to be sent/received
     setTimeout(() => {
       setMessages([]);
@@ -517,6 +536,13 @@ const useChatLogic = () => {
     if (currentPeerId) {
       setError(""); // Clear previous errors
       setCallStatus("dialing"); // Set status to dialing immediately
+
+      // Clear any previous no-answer timeout first
+      if (noAnswerTimeoutRef.current) {
+        clearTimeout(noAnswerTimeoutRef.current);
+        noAnswerTimeoutRef.current = null;
+      }
+
       const success = await WebRTCService.startCall(currentPeerId);
       if (success) {
         setMessages((prev) => [
@@ -528,6 +554,30 @@ const useChatLogic = () => {
             time: new Date(),
           },
         ]);
+
+        // Set the no-answer timeout
+        noAnswerTimeoutRef.current = setTimeout(() => {
+          // This timeout executes if the call wasn't answered/connected in time
+          console.log(`No answer timeout triggered for call to ${currentPeerId}.`);
+          
+          // Check if call is still in a pending state (dialing/ringing)
+          // This check is implicitly handled because if it became 'active', 'ended', or 'error',
+          // the timeout would have been cleared by setOnCallStatusCallback.
+          // So, if this timeout runs, the call is presumed not answered.
+
+          WebRTCService.endCall(); // This will trigger 'ended' status via onCallStatusCallback
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: `Peer did not answer. Call to ${currentPeerId} ended.`,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
+          noAnswerTimeoutRef.current = null; // Clear the ref after firing
+        }, NO_ANSWER_TIMEOUT_DURATION);
+
       } else {
         pauseAudio(outgoingRingingAudioRef); // Ensure outgoing ringing stops if startCall fails immediately
         setCallStatus("error"); // Reset status
@@ -548,6 +598,11 @@ const useChatLogic = () => {
   };
 
   const handleEndCall = () => {
+    // Clear no-answer timeout if active when user manually ends call
+    if (noAnswerTimeoutRef.current) {
+      clearTimeout(noAnswerTimeoutRef.current);
+      noAnswerTimeoutRef.current = null;
+    }
     pauseAudio(incomingRingtoneAudioRef); // Added
     pauseAudio(outgoingRingingAudioRef); // Added
     WebRTCService.endCall();
