@@ -269,6 +269,8 @@ const Chat = ({ boxWidth = 420 }) => {
           flexDirection: "column",
           bgcolor: "#fafbfc",
           pb: 0,
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
         {error && (

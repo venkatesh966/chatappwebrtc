@@ -29,9 +29,10 @@ function App() {
           textShadow: '0 3px 8px rgba(0, 0, 0, 0.35)',
         }}
       >
-        Vibe Connect
+        NoBridge
       </h1>
       <p
+        className="animated-tagline"
         style={{
           marginTop: -10,
           marginBottom: 8,
@@ -41,11 +42,14 @@ function App() {
           textAlign: 'center',
           letterSpacing: 0.5,
           textShadow: '0 1px 4px rgba(0, 0, 0, 0.4)',
+          opacity: 0, // Will animate to 1
         }}
       >
-        Seamless Peer-to-Peer: File Sharing, Audio Calls & Chat
+        Seamless Connect. Instant Share. Free Chat. Direct Call.
       </p>
-      <Chat boxWidth={550} />
+      <div style={{ marginBottom: '16px' }}>
+        <Chat boxWidth={550} />
+      </div>
     </div>
   )
 }

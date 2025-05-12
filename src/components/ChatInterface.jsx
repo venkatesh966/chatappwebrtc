@@ -245,16 +245,15 @@ const ChatInterface = ({
             }}
           />
         </Paper>
-      ))}
-
-      {/* NEW WRAPPER for Middle Section (Messages + Typing Indicator) */}
+      ))} 
       <Box
         sx={{
           position: 'relative',
-          flex: 1, // This wrapper takes up the available vertical space
+          flex: 1, 
+          minHeight: 0, 
           display: 'flex',
           flexDirection: 'column',
-          '&::before': { // The fixed gradient strip
+          '&::before': { 
             content: '""',
             position: 'absolute',
             left: 0,
