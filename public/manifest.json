@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Vibe Connect",
+  "name": "NoBridge – Browser-to-Browser Chat, Calls & File Sharing",
   "version": "1.1",
-  "description": "Peer-to-peer chat and audio call app for secure, real-time communication via Chrome extension, with file sharing and messaging.",
+  "description": "Seamless peer-to-peer communication – chat, audio calls, and file sharing directly between browsers. No login. No servers.",
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Vibe Connect"
+    "default_title": "NoBridge"
   },
   "permissions": [
     "tabs"
@@ -15,4 +15,4 @@
   "icons": {
     "128": "icon128.png"
   }
-} 
+}
