@@ -105,12 +105,26 @@ const Chat = ({ boxWidth = 420 }) => {
 
   const handleLocalFileSelect = async (event) => {
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (files.length === 0) return;
 
-    if (files.length > 3) {
-      setError("You can select a maximum of 3 files at a time.");
+    if (files.length > 7) {
+      setError("You can select a maximum of 7 files at a time.");
       if (fileInputRef.current) {
         fileInputRef.current.value = ""; 
+      }
+      return;
+    }
+
+    let totalSize = 0;
+    for (const file of files) {
+      totalSize += file.size;
+    }
+
+    const ONE_GB = 1024 * 1024 * 1024;
+    if (totalSize > ONE_GB) {
+      setError("The total size of selected files cannot exceed 1GB.");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
       }
       return;
     }

@@ -163,23 +163,11 @@ class WebRTCService {
     }
 
     // Adjust file size limits based on file type
-    const MAX_FILE_SIZE = {
-      'application/pdf': 500 * 1024 * 1024, // 500MB for PDFs
-      'image/': 500 * 1024 * 1024, // 500MB for images
-      'default': 500 * 1024 * 1024 // 500MB default
-    };
+    const MAX_FILE_SIZE_INDIVIDUAL = 1024 * 1024 * 1024; // 1GB per file
 
-    // Determine the appropriate size limit
-    let sizeLimit = MAX_FILE_SIZE.default;
-    if (file.type === 'application/pdf') {
-      sizeLimit = MAX_FILE_SIZE['application/pdf'];
-    } else if (file.type.startsWith('image/')) {
-      sizeLimit = MAX_FILE_SIZE['image/'];
-    }
-
-    if (file.size > sizeLimit) {
-      const limitInMB = sizeLimit / (1024 * 1024);
-      throw new Error(`File size exceeds limit of ${limitInMB}MB for ${file.type} files`);
+    if (file.size > MAX_FILE_SIZE_INDIVIDUAL) {
+      const limitInMB = MAX_FILE_SIZE_INDIVIDUAL / (1024 * 1024);
+      throw new Error(`File size exceeds the individual limit of ${limitInMB}MB.`);
     }
 
     try {
