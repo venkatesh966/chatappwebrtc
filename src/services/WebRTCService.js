@@ -46,7 +46,26 @@ class WebRTCService {
     });
 
     this.peer.on('error', (err) => {
-      console.error('PeerJS error:', err);
+      console.error('[WebRTCService] PeerJS instance ERROR event. Type:', err.type, 'Error:', err);
+      // Optionally, you could try to inform the UI or re-initialize, but be cautious of loops.
+      // For now, just logging is important for diagnosis.
+      // if (this.onCallStatusCallback) {
+      //   this.onCallStatusCallback('error', null, `PeerJS system error: ${err.type}`);
+      // }
+      // If the error is fatal, PeerJS might destroy the peer object internally.
+    });
+
+    this.peer.on('disconnected', () => {
+      console.warn('[WebRTCService] PeerJS instance DISCONNECTED event. The peer has disconnected from the PeerServer.');
+      // PeerJS will attempt to reconnect automatically. If it fails, an 'error' event might follow.
+      // We might not need to nullify `this.peer` here yet, as PeerJS attempts to auto-reconnect.
+      // However, if calls fail after this, it indicates reconnection failed.
+    });
+
+    this.peer.on('close', () => {
+      // This event is when the peer is destroyed (e.g., by calling peer.destroy())
+      console.warn('[WebRTCService] PeerJS instance CLOSE event. The peer has been destroyed and can no longer make or receive connections.');
+      this.peer = null; // Ensure our reference is also nulled if PeerJS says it's closed.
     });
 
     this.peer.on('call', (call) => {
@@ -279,7 +298,7 @@ class WebRTCService {
       if (conn && conn.open) {
         conn.send({ 
           type: 'disconnect', 
-          message: 'Peer has disconnected unexpectedly',
+          message: 'Peer has disconnected.', 
           reason: 'browser_close'
         });
       }
@@ -292,7 +311,7 @@ class WebRTCService {
       if (conn && conn.open) {
         conn.send({ 
           type: 'disconnect', 
-          message: 'Peer has ended the session',
+          message: 'Peer has ended the session.',
           reason: 'user_disconnect'
         });
       }
@@ -310,34 +329,128 @@ class WebRTCService {
 
   // Audio Call Methods
   async startCall(peerId) {
+    console.log(`[WebRTCService] Attempting to start call with peer: ${peerId}. Current this.peer status - ID: ${this.peer ? this.peer.id : 'N/A'}, destroyed: ${this.peer ? this.peer.destroyed : 'N/A'}, disconnected: ${this.peer ? this.peer.disconnected : 'N/A'}, open: ${this.peer ? this.peer.open : 'N/A'}`);
+
+    if (!this.peer || !this.peer.id || this.peer.destroyed || (typeof this.peer.disconnected === 'boolean' && this.peer.disconnected)) {
+      console.error(`[WebRTCService] Pre-call check FAILED: Peer object invalid. ID: ${this.peer ? this.peer.id : 'N/A'}, Destroyed: ${this.peer ? this.peer.destroyed : 'N/A'}, Disconnected: ${this.peer ? this.peer.disconnected : 'N/A'}, Open: ${this.peer ? this.peer.open : 'N/A'}`);
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('error', null, 'WebRTC service is not ready or peer is disconnected. Please check connection.');
+      }
+      return false;
+    }
+    console.log(`[WebRTCService] Pre-call check PASSED. Peer status - ID: ${this.peer.id}, Destroyed: ${this.peer.destroyed}, Disconnected: ${this.peer.disconnected}, Open: ${this.peer.open}`);
+
+    if (!peerId) {
+        console.error('[WebRTCService] Cannot start call: No peerId provided.');
+        if (this.onCallStatusCallback) {
+            this.onCallStatusCallback('error', null, 'Cannot start call: Target peer ID is missing.');
+        }
+        return false;
+    }
+
+    if (this.peer && this.peer.id === peerId) {
+      console.error('[WebRTCService] Cannot call self. Attempted to call own peer ID:', peerId);
+      if (this.onCallStatusCallback) {
+        this.onCallStatusCallback('error', null, 'Cannot initiate a call with yourself.');
+      }
+      return false;
+    }
+
     try {
-      // Request audio permissions and get local stream
+      console.log(`[WebRTCService] Requesting audio stream. Peer status before await: ID: ${this.peer.id}, Destroyed: ${this.peer.destroyed}, Disconnected: ${this.peer.disconnected}, Open: ${this.peer.open}`);
       this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log(`[WebRTCService] Acquired local audio stream. Peer status after await: ID: ${this.peer ? this.peer.id : 'N/A'}, Destroyed: ${this.peer ? this.peer.destroyed : 'N/A'}, Disconnected: ${this.peer ? this.peer.disconnected : 'N/A'}, Open: ${this.peer ? this.peer.open : 'N/A'}`);
       
-      // Create a call to the peer
+      if (!this.peer || typeof this.peer.call !== 'function' || this.peer.destroyed || (typeof this.peer.disconnected === 'boolean' && this.peer.disconnected)) {
+        console.error(`[WebRTCService] CRITICAL FAILURE: this.peer invalid before .call(). ID: ${this.peer ? this.peer.id : 'N/A'}, Destroyed: ${this.peer ? this.peer.destroyed : 'N/A'}, Disconnected: ${this.peer ? this.peer.disconnected : 'N/A'}, Open: ${this.peer ? this.peer.open : 'N/A'}, callIsFunction: ${!!(this.peer && typeof this.peer.call === 'function')}`);
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('error', null, 'Failed to initiate call: WebRTC peer object became invalid before calling.');
+        }
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(track => track.stop()); this.localStream = null;
+          console.log('[WebRTCService] Cleaned up local stream due to invalid peer state before .call().');
+        }
+        return false;
+      }
+      
+      console.log(`[WebRTCService] Calling peer: ${peerId}. Peer status before .call(): ID: ${this.peer.id}, Destroyed: ${this.peer.destroyed}, Disconnected: ${this.peer.disconnected}, Open: ${this.peer.open}. Proceeding.`);
       this.call = this.peer.call(peerId, this.localStream);
       
-      // Set up call event handlers
+      if (!this.call) {
+        console.error('[WebRTCService] Failed to create call object with PeerJS (this.peer.call returned null/undefined).');
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('error', null, 'Failed to initiate call with PeerJS.');
+        }
+        // Clean up local stream if acquired
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(track => track.stop()); this.localStream = null;
+          console.log('[WebRTCService] Cleaned up local stream after failing to create call object.');
+        }
+        return false;
+      }
+      console.log('[WebRTCService] PeerJS call object created:', this.call);
+
       this.call.on('stream', (remoteStream) => {
-        // Handle incoming stream
+        console.log('[WebRTCService] Call stream received:', remoteStream);
         if (this.onCallStatusCallback) {
           this.onCallStatusCallback('active', remoteStream);
         }
       });
 
       this.call.on('close', () => {
-        this.endCall();
+        console.log('[WebRTCService] Call closed by peer or due to an error.');
+        this.endCall(); 
+      });
+
+      this.call.on('error', (err) => {
+        console.error('[WebRTCService] PeerJS call object error:', err);
+        let callErrorMessage = 'Call failed';
+        if (err && err.type) {
+          switch (err.type) {
+            case 'peer-unavailable': callErrorMessage = `Call failed: Peer ${peerId} is unavailable.`; break;
+            case 'connection-error': callErrorMessage = 'Call failed due to a connection error.'; break;
+            case 'network': callErrorMessage = 'Call failed due to a network error.'; break;
+            case 'webrtc': callErrorMessage = 'Call failed due to a WebRTC error.'; break;
+            default: callErrorMessage = `Call error: ${err.type}`;
+          }
+        } else if (err && err.message) {
+          callErrorMessage = `Call error: ${err.message}`;
+        } else if (typeof err === 'string') {
+          callErrorMessage = `Call error: ${err}`;
+        }
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('error', null, callErrorMessage);
+        }
       });
 
       if (this.onCallStatusCallback) {
         this.onCallStatusCallback('connecting');
       }
-
+      console.log('[WebRTCService] Call process initiated, status connecting.');
       return true;
     } catch (error) {
-      console.error('Error starting call:', error);
+      console.error(`[WebRTCService] Error in startCall try-catch block. Message: ${error.message}. Peer state at catch: ID: ${this.peer ? this.peer.id : 'N/A'}, Destroyed: ${this.peer ? this.peer.destroyed : 'N/A'}, Disconnected: ${this.peer ? this.peer.disconnected : 'N/A'}, Open: ${this.peer ? this.peer.open : 'N/A'}`, error, 'Stack:', error.stack);
+      let errorMessage = 'Failed to start call.';
+      if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = 'Failed to start call: No microphone found or permission denied.';
+      } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = 'Failed to start call: Microphone permission was denied.';
+      } else if (error.message) {
+        // Use the specific error if it's "Cannot read properties of null (reading 'call')"
+        if (error.message.includes("Cannot read properties of null (reading 'call')")) {
+            errorMessage = "Failed to start call: Peer object became null unexpectedly.";
+        } else {
+            errorMessage = `Failed to start call: ${error.message}`;
+        }
+      }
+      
       if (this.onCallStatusCallback) {
-        this.onCallStatusCallback('error', null, error.message);
+        this.onCallStatusCallback('error', null, errorMessage);
+      }
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(track => track.stop());
+        this.localStream = null;
+        console.log('[WebRTCService] Cleaned up local stream after error in startCall catch block.');
       }
       return false;
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import Draggable from 'react-draggable';
 import {
   Box,
   IconButton,
@@ -62,6 +63,7 @@ const AudioCall = ({
   callDuration 
 }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const nodeRef = useRef(null);
 
   useEffect(() => {
     const activeCallStatuses = ['dialing', 'opponent_ringing', 'incoming_ringing', 'active'];
@@ -101,43 +103,49 @@ const AudioCall = ({
   }
 
   return (
-    <CallContainer elevation={3}>
-      <Typography variant="subtitle2" color="textSecondary">
-        {statusText}
-      </Typography>
-      
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-        {callStatus === 'dialing' ? (
-          <CircularProgress size={36} sx={{ margin: '8px' }}/>
-        ) : (
-          <>
-            <MuteButton onClick={onMuteToggle} disabled={!isCallActive}>
-              <Tooltip title={isMuted ? "Unmute" : "Mute"}>
-                {isMuted ? <MicOffIcon /> : <MicIcon />}
-              </Tooltip>
-            </MuteButton>
-            
-            {(isCallActive || callStatus === 'opponent_ringing' || callStatus === 'dialing') ? (
-              <CallButton 
-                color="error" 
-                onClick={onEndCall}
-                aria-label="End Call"
-              >
-                <CallEndIcon />
-              </CallButton>
-            ) : (
-              <CallButton 
-                color="primary" 
-                onClick={onStartCall}
-                aria-label="Start Call"
-              >
-                <CallIcon />
-              </CallButton>
-            )}
-          </>
-        )}
-      </Box>
-    </CallContainer>
+    <Draggable nodeRef={nodeRef}>
+      <CallContainer 
+        ref={nodeRef}
+        elevation={3}
+        sx={{ cursor: 'move' }}
+      >
+        <Typography variant="subtitle2" color="textSecondary">
+          {statusText}
+        </Typography>
+        
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          {callStatus === 'dialing' ? (
+            <CircularProgress size={36} sx={{ margin: '8px' }}/>
+          ) : (
+            <>
+              <MuteButton onClick={onMuteToggle} disabled={!isCallActive}>
+                <Tooltip title={isMuted ? "Unmute" : "Mute"}>
+                  {isMuted ? <MicOffIcon /> : <MicIcon />}
+                </Tooltip>
+              </MuteButton>
+              
+              {(isCallActive || callStatus === 'opponent_ringing' || callStatus === 'dialing') ? (
+                <CallButton 
+                  color="error" 
+                  onClick={onEndCall}
+                  aria-label="End Call"
+                >
+                  <CallEndIcon />
+                </CallButton>
+              ) : (
+                <CallButton 
+                  color="primary" 
+                  onClick={onStartCall}
+                  aria-label="Start Call"
+                >
+                  <CallIcon />
+                </CallButton>
+              )}
+            </>
+          )}
+        </Box>
+      </CallContainer>
+    </Draggable>
   );
 };
 

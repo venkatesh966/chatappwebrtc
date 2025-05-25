@@ -3,13 +3,71 @@ import WebRTCService from "../services/WebRTCService";
 
 const NO_ANSWER_TIMEOUT_DURATION = 15000; // 15 seconds
 
+const mapErrorMessageToUserFriendly = (technicalError) => {
+  if (!technicalError) return "An unknown error occurred. Please try again.";
+
+  // General connection issues
+  if (technicalError.includes("service is not ready") || technicalError.includes("peer is disconnected")) {
+    return "Cannot proceed: The connection service isn\'t ready. Please check your connection and try again.";
+  }
+  if (technicalError.includes("Target peer ID is missing")) {
+    return "Cannot start call: The ID of the person you want to call is missing.";
+  }
+  if (technicalError.includes("Failed to initiate call with PeerJS") || technicalError.includes("Failed to create call object")) {
+    return "Could not initiate the call. Please try again shortly.";
+  }
+  if (technicalError.includes("peer-unavailable") || (technicalError.includes("Peer") && technicalError.includes("is unavailable"))) {
+    return "Could not reach the other person. They might be busy or disconnected.";
+  }
+  if (technicalError.includes("connection-error") || technicalError.includes("Connection error")) {
+    return "Call failed. Please check your internet connection.";
+  }
+  if (technicalError.includes("network") && technicalError.includes("error")) { // Be more specific for network errors
+    return "Call failed due to a network problem. Please try again.";
+  }
+  if (technicalError.includes("WebRTC error") || technicalError.includes("webrtc")) {
+    return "A technical problem occurred with the call. Please try again.";
+  }
+  // Microphone issues
+  if (technicalError.includes("No microphone found") || technicalError.includes("NotFoundError") || technicalError.includes("DevicesNotFoundError")) {
+    return "Cannot start call: No microphone found, or microphone access was denied. Please check your microphone settings and permissions.";
+  }
+  if (technicalError.includes("Microphone permission was denied") || technicalError.includes("NotAllowedError") || technicalError.includes("PermissionDeniedError")) {
+    return "Cannot start call: Microphone access was denied. Please allow microphone access in your browser settings and try again.";
+  }
+  // Peer object issues
+  if (technicalError.includes("Peer object became null") || technicalError.includes("peer object became invalid")) {
+    return "Call failed unexpectedly due to an internal error. Please try reconnecting.";
+  }
+  if (technicalError.includes("Cannot call self") || technicalError.includes("call with yourself")) {
+    return "You cannot start a call with your own ID.";
+  }
+
+  // File errors
+  if (technicalError.startsWith("File size exceeds")) { // Already user-friendly
+    return technicalError;
+  }
+  if (technicalError.includes("No open connection")) {
+      return "Connection lost. Please reconnect to perform this action.";
+  }
+   if (technicalError.includes("Cannot send empty file")) {
+    return "Cannot send an empty file. Please select a file with content.";
+  }
+
+  // Default for unmatched technical errors
+  // If a specific part of a technical error is good, we can try to extract it.
+  // For now, a generic message for truly unmapped errors.
+  // console.warn("Unmapped technical error:", technicalError); // Optional: for development
+  return "An unexpected error occurred. Please try again.";
+};
+
 const useChatLogic = () => {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [peerId, setPeerId] = useState(""); // For connection input form
   const [myId, setMyId] = useState("");
-  const [disconnectReason, setDisconnectReason] = useState(null);
+  const [disconnectReason, setDisconnectReason] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -63,7 +121,7 @@ const useChatLogic = () => {
           setMessages((prev) => [
             ...prev,
             {
-              text: `File transfer timeout: ${data.name}`,
+              text: `The transfer of file '${data.name}' took too long and was cancelled. Please try sending it again.`,
               sender: "system",
               isSystem: true,
               time: new Date(),
@@ -131,7 +189,7 @@ const useChatLogic = () => {
                 setMessages((prev) => [
                   ...prev,
                   {
-                    text: `File transfer timeout: ${file.name}`,
+                    text: `Receiving file '${file.name}' timed out. Please ask the sender to try again.`,
                     sender: "system",
                     isSystem: true,
                     time: new Date(),
@@ -193,11 +251,13 @@ const useChatLogic = () => {
 
               const validChunks = file.chunks.filter((chunk) => chunk !== undefined);
               if (validChunks.length !== file.totalChunks) {
-                throw new Error(`File assembly error: Missing ${file.totalChunks - validChunks.length} chunks for ${file.name}`);
+                // User-friendly message for missing chunks
+                throw new Error(`Could not assemble '${file.name}'. Some parts of the file were missing. Please ask the sender to try again.`);
               }
               const blob = new Blob(validChunks, { type: file.mimeType });
               if (blob.size !== file.size) {
-                throw new Error(`File size mismatch for ${file.name}: received ${blob.size}, expected ${file.size}`);
+                // User-friendly message for size mismatch
+                throw new Error(`Could not verify '${file.name}'. The received file size was different from the expected size. Please ask the sender to try again.`);
               }
 
               // Add system message for manual download
@@ -228,10 +288,15 @@ const useChatLogic = () => {
 
             } catch (err) {
               console.error("[useChatLogic] Error during file completion processing:", err);
+              // Use the error message directly if it's one of our custom ones, otherwise map it or use a generic one.
+              const fileCompletionErrorText = (err.message.startsWith("Could not assemble") || err.message.startsWith("Could not verify")) 
+                ? err.message 
+                : mapErrorMessageToUserFriendly(err.message || `Error processing received file: ${file.name}`);
+
               setMessages((prevMsgs) => [
                 ...prevMsgs,
                 {
-                  text: `Error processing received file: ${file.name} - ${err.message}`,
+                  text: fileCompletionErrorText,
                   sender: "system",
                   isSystem: true,
                   time: new Date(),
@@ -297,10 +362,20 @@ const useChatLogic = () => {
               clearTimeout(timeout);
             });
             fileTimeouts.current.clear();
+            
+            let disconnectMsg = "The other person has disconnected."; // Default
+            if (data.reason === 'browser_close') {
+              disconnectMsg = "The other person appears to have left or closed their browser.";
+            } else if (data.reason === 'user_disconnect') {
+              disconnectMsg = "The other person has ended the session.";
+            } else if (data.message) { // Fallback to data.message if reason is not specific enough
+                disconnectMsg = data.message;
+            }
+
             setMessages((prev) => [
               ...prev,
               {
-                text: data.message,
+                text: disconnectMsg, // Use the new user-friendly message
                 sender: "system",
                 isSystem: true,
                 time: new Date(),
@@ -401,13 +476,22 @@ const useChatLogic = () => {
         case "incoming":
           setCallStatus("incoming_ringing");
           playAudio(incomingRingtoneAudioRef, true);
-          if (window.confirm("Incoming call. Accept?")) {
+          if (window.confirm("You have an incoming call. Would you like to answer?")) {
             pauseAudio(incomingRingtoneAudioRef);
             WebRTCService.answerCall(streamOrCall);
           } else {
             pauseAudio(incomingRingtoneAudioRef);
             WebRTCService.rejectCall(streamOrCall);
             setCallStatus("ended");
+            setMessages((prev) => [
+              ...prev,
+              {
+                text: "Incoming call rejected.",
+                sender: "system",
+                isSystem: true,
+                time: new Date(),
+              },
+            ]);
           }
           break;
         case "connecting":
@@ -421,8 +505,20 @@ const useChatLogic = () => {
           startCallTimer();
           if (audioRef.current && streamOrCall) {
             audioRef.current.srcObject = streamOrCall;
-            audioRef.current.play().catch(e => console.error("Error playing audio:", e));
+            audioRef.current.play().catch(e => {
+              console.error("Error playing audio:", e);
+              setError(mapErrorMessageToUserFriendly("Could not play call audio."));
+            });
           }
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: "Call connected.",
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
           break;
         case "ended":
           pauseAudio(incomingRingtoneAudioRef);
@@ -430,30 +526,44 @@ const useChatLogic = () => {
           setIsCallActive(false);
           setCallStatus("ended");
           stopCallTimer();
-          setMessages((prev) => [
-            ...prev,
-            {
-              text: `Call ended at ${formatTime(new Date())}`,
-              sender: "system",
-              isSystem: true,
-              time: new Date(),
-            },
-          ]);
+          const lastMessage = messages[messages.length -1];
+          if (!lastMessage || !lastMessage.text.includes("Call ended")) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                text: `Call ended. Duration: ${callDuration}`,
+                sender: "system",
+                isSystem: true,
+                time: new Date(),
+              },
+            ]);
+          }
           break;
         case "error":
           pauseAudio(incomingRingtoneAudioRef);
           pauseAudio(outgoingRingingAudioRef);
-          console.error("Call error:", errorMsg);
-          setError(errorMsg?.message || "Call error occurred");
+          console.error("Call error from WebRTCService callback:", errorMsg);
+          const userFriendlyError = mapErrorMessageToUserFriendly(errorMsg?.message || errorMsg || "Call error occurred");
+          setError(userFriendlyError);
           setIsCallActive(false);
           setCallStatus("error");
           stopCallTimer();
           if (audioRef.current) {
             audioRef.current.srcObject = null;
           }
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: userFriendlyError.startsWith("Call failed") ? userFriendlyError : `Call failed: ${userFriendlyError}`,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
           break;
         default:
             console.warn("Unknown call status:", status);
+            setError(mapErrorMessageToUserFriendly(`Unknown call status: ${status}`));
       }
     });
 
@@ -493,7 +603,7 @@ const useChatLogic = () => {
   const handleConnect = async (idToConnect) => { // Changed peerId arg to idToConnect
     const id = idToConnect.trim();
     if (!id) {
-      setError("Please enter a peer ID");
+      setError("Please enter the ID of the person you want to connect with.");
       return;
     }
 
@@ -501,20 +611,26 @@ const useChatLogic = () => {
       setError("");
       setIsConnecting(true);
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Connection timeout")), 10000);
+        // User-friendly timeout message for the promise
+        setTimeout(() => reject(new Error("Connection attempt timed out. Please check the ID and try again.")), 10000);
       });
       await Promise.race([WebRTCService.connectToPeer(id), timeoutPromise]);
       // Connection success is handled by onPeerConnectedCallback
       // setConnected(true) and setDisconnectReason(null) are handled there
     } catch (err) {
-      setError("Failed to connect: " + (err.message || "Unknown error"));
-      console.error("Connection error:", err);
-      WebRTCService.disconnect(); // Ensure cleanup
-      WebRTCService.initialize(); // Reinitialize
-      setConnected(false); // Explicitly set connected to false on error
-      setIsConnecting(false); // Reset connecting state
+      const specificError = err.message === "Connection attempt timed out. Please check the ID and try again." 
+                             ? err.message 
+                             : mapErrorMessageToUserFriendly(err.message || "Failed to connect");
+      setError(specificError);
+      console.error("Connection error in handleConnect:", err);
+      setConnected(false); 
+      setIsConnecting(false); 
+
+      // Reload the page after 5 seconds on connection error
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
     }
-    //setIsConnecting(false); // Moved to onPeerConnected or catch
   };
 
   const handleSendMessage = (currentPeerId, messageContent) => { // Pass peerId and messageContent
@@ -542,7 +658,7 @@ const useChatLogic = () => {
        // For now, let's keep it but it's better handled in Chat.jsx
       setTimeout(() => {
         window.location.reload();
-      }, 2000);
+      }, 3000); // Changed from 2000 to 3000
     }, 1000);
   };
 
@@ -555,26 +671,45 @@ const useChatLogic = () => {
   };
 
   const handleFileSelect = async (file, currentPeerId) => { // Pass file and peerId
-    if (!file || !currentPeerId) return;
+    if (!file || !currentPeerId) {
+      setError(mapErrorMessageToUserFriendly("No file selected or not connected to a peer."));
+      return;
+    }
+     if (file.size === 0) {
+      setError(mapErrorMessageToUserFriendly("Cannot send empty file"));
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `Could not send file: '${file.name}' is empty.`,
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+      return;
+    }
 
     try {
       setError(""); // Clear previous errors
       await WebRTCService.sendFile(currentPeerId, file);
-      // lastSentFileNameRef.current = file.name; // This is now handled by onFileProgressCallback
+      // Message for successful send is now handled by onFileProgressCallback (progress 100%)
     } catch (err) {
-      let errorMessage = "Failed to send file: ";
+      let userMessage;
       if (err.message.includes("exceeds limit")) {
-        errorMessage = err.message;
+        userMessage = err.message; // This is already user-friendly
       } else if (err.message.includes("No open connection")) {
-        errorMessage = "Connection lost. Please reconnect to send files.";
+        userMessage = "Connection lost. Please reconnect to send files.";
+      } else if (err.message.includes("Cannot send empty file")) {
+        userMessage = "Cannot send an empty file. Please select a file with content.";
       } else {
-        errorMessage += err.message || "Unknown error";
+        // Generic message for other errors caught by sendFile
+        userMessage = mapErrorMessageToUserFriendly("Could not send the file. " + (err.message || ""));
       }
-      setError(errorMessage);
-      setMessages((prev) => [ // Also show error as a system message
+      setError(userMessage);
+      setMessages((prev) => [ 
         ...prev,
         {
-          text: `Failed to send file: ${file.name} - ${errorMessage}`,
+          text: `Failed to send file '${file.name}'. Reason: ${userMessage}`,
           sender: "system",
           isSystem: true,
           time: new Date(),
@@ -607,66 +742,73 @@ const useChatLogic = () => {
 
   const handleStartCall = async (currentPeerId) => { // Pass peerId
     if (currentPeerId) {
-      setError(""); // Clear previous errors
-      setCallStatus("dialing"); // Set status to dialing immediately
+      setError(""); 
+      setCallStatus("dialing"); 
 
-      // Clear any previous no-answer timeout first
       if (noAnswerTimeoutRef.current) {
         clearTimeout(noAnswerTimeoutRef.current);
         noAnswerTimeoutRef.current = null;
       }
+      
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `Attempting to call ${currentPeerId}...`,
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
 
       const success = await WebRTCService.startCall(currentPeerId);
       if (success) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: `Calling ${currentPeerId}...`, // Updated message
-            sender: "system",
-            isSystem: true,
-            time: new Date(),
-          },
-        ]);
+        playAudio(outgoingRingingAudioRef, true);
 
-        // Set the no-answer timeout
         noAnswerTimeoutRef.current = setTimeout(() => {
-          // This timeout executes if the call wasn't answered/connected in time
           console.log(`No answer timeout triggered for call to ${currentPeerId}.`);
-          
-          // Check if call is still in a pending state (dialing/ringing)
-          // This check is implicitly handled because if it became 'active', 'ended', or 'error',
-          // the timeout would have been cleared by setOnCallStatusCallback.
-          // So, if this timeout runs, the call is presumed not answered.
-
-          WebRTCService.endCall(); // This will trigger 'ended' status via onCallStatusCallback
+          WebRTCService.endCall(); 
           setMessages((prev) => [
             ...prev,
             {
-              text: `Peer did not answer. Call to ${currentPeerId} ended.`,
+              text: `${currentPeerId} did not answer. Call ended.`,
               sender: "system",
               isSystem: true,
               time: new Date(),
             },
           ]);
-          noAnswerTimeoutRef.current = null; // Clear the ref after firing
+          setError(`${currentPeerId} did not answer the call.`);
+          noAnswerTimeoutRef.current = null; 
         }, NO_ANSWER_TIMEOUT_DURATION);
 
       } else {
         pauseAudio(outgoingRingingAudioRef); 
-        setCallStatus("error"); // Reset status
-        setError("Failed to start call. Ensure peer is connected and available.");
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: "Failed to start call. Peer might not be available.",
-            sender: "system",
-            isSystem: true,
-            time: new Date(),
-          },
-        ]);
+        setCallStatus("error"); 
+        const currentError = error;
+        if (!currentError) {
+          const specificError = mapErrorMessageToUserFriendly("Failed to start call. Peer might not be available or a connection issue occurred.");
+          setError(specificError);
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: specificError,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
+        }
       }
     } else {
-        setError("Cannot start call: No peer connected.");
+        setError(mapErrorMessageToUserFriendly("Cannot start call: No peer connected."));
+         setMessages((prev) => [
+            ...prev,
+            {
+              text: "Cannot start a call as you are not connected to anyone.",
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
     }
   };
 
