@@ -132,8 +132,7 @@ const Chat = ({ boxWidth = 420 }) => {
     setError(""); 
     for (const file of files) {
       if (!connectedPeerId || error) {
-          console.warn("File upload iteration stopped due to disconnection or existing error.");
-          break; 
+        break; 
       }
       await hookHandleFileSelect(file, connectedPeerId);
     }
@@ -174,7 +173,6 @@ const Chat = ({ boxWidth = 420 }) => {
         overflow: "hidden",
       }}
     >
-      {/* Header */}
       <Box
         sx={{
           background: "linear-gradient(90deg, #4f8cff 0%, #3ff57a 100%)",
@@ -223,7 +221,6 @@ const Chat = ({ boxWidth = 420 }) => {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            
             <Box 
               sx={{
                 width: 10, 
@@ -244,19 +241,15 @@ const Chat = ({ boxWidth = 420 }) => {
                   height: 6, 
                   borderRadius: '50%',
                   bgcolor: myId ? 'success.main' : 'grey.400',
-                 
                   display: 'block', 
                 }}
               />
             </Box>
             Your ID:
           </Box>
-          
-        
           <b style={{ color: "#fff", fontWeight: 600 }}>
             {myId}
           </b>
-
           <Tooltip title={copied ? "Copied!" : "Copy"} placement="top" arrow>
             <IconButton
               size="small"
@@ -274,7 +267,6 @@ const Chat = ({ boxWidth = 420 }) => {
         </Typography>
         <Box sx={{ flex: 1 }} />
       </Box>
-      {/* Chat Area */}
       <Box
         sx={{
           p: 2,
@@ -328,7 +320,6 @@ const Chat = ({ boxWidth = 420 }) => {
           />
         )}
       </Box>
-      {/* Audio Call Component */}
       {connected && (
         <AudioCall
           isCallActive={isCallActive}
@@ -341,7 +332,6 @@ const Chat = ({ boxWidth = 420 }) => {
         />
       )}
       <audio ref={audioRef} autoPlay />
-      {/* Audio elements for ringtones */}
       <audio ref={incomingRingtoneAudioRef} src="/sounds/incoming_ringtone.mp3" loop />
       <audio ref={outgoingRingingAudioRef} src="/sounds/outgoing_ringing.mp3" loop />
     </Paper>

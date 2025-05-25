@@ -521,17 +521,32 @@ const useChatLogic = () => {
           ]);
           break;
         case "ended":
+          // Capture previous status to determine if it was a cancelled outgoing call
+          const previousCallStatus = callStatus;
+
           pauseAudio(incomingRingtoneAudioRef);
           pauseAudio(outgoingRingingAudioRef);
           setIsCallActive(false);
-          setCallStatus("ended");
+          setCallStatus("ended"); // Set to ended first
           stopCallTimer();
+          
           const lastMessage = messages[messages.length -1];
-          if (!lastMessage || !lastMessage.text.includes("Call ended")) {
+          let callEndedMessageText = `Call ended. Duration: ${callDuration}`;
+
+          // If the call was cancelled during dialing or opponent_ringing and duration is 00:00
+          if ((previousCallStatus === 'dialing' || previousCallStatus === 'opponent_ringing') && callDuration === "00:00") {
+            callEndedMessageText = "Call cancelled.";
+          }
+
+          // Avoid duplicate "Call ended" or "Call cancelled" messages
+          if (!lastMessage || 
+              (!lastMessage.text.includes("Call ended") && 
+               !lastMessage.text.includes("Call cancelled") && 
+               !lastMessage.text.includes("did not answer"))) { // Also check for no-answer message
             setMessages((prev) => [
               ...prev,
               {
-                text: `Call ended. Duration: ${callDuration}`,
+                text: callEndedMessageText,
                 sender: "system",
                 isSystem: true,
                 time: new Date(),

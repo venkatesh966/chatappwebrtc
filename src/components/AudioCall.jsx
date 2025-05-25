@@ -13,6 +13,7 @@ import MicIcon from '@mui/icons-material/Mic';
 import MicOffIcon from '@mui/icons-material/MicOff';
 import CallIcon from '@mui/icons-material/Call';
 import { styled } from '@mui/material/styles';
+import WebRTCService from '../services/WebRTCService';
 
 const CallContainer = styled(Paper)(({ theme }) => ({
   position: 'fixed',
@@ -113,35 +114,37 @@ const AudioCall = ({
           {statusText}
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          {callStatus === 'dialing' ? (
-            <CircularProgress size={36} sx={{ margin: '8px' }}/>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 1 }}>
+          {callStatus === 'dialing' && (
+            <CircularProgress size={24} sx={{ mr: 1 }} />
+          )}
+
+          {(isCallActive || callStatus === 'incoming_ringing' || callStatus === 'opponent_ringing') && (
+            <MuteButton onClick={onMuteToggle} disabled={!isCallActive && callStatus !== 'incoming_ringing' && callStatus !== 'opponent_ringing' } >
+              <Tooltip title={isMuted ? "Unmute" : "Mute"}>
+                {isMuted ? <MicOffIcon /> : <MicIcon />}
+              </Tooltip>
+            </MuteButton>
+          )}
+          
+          {(isCallActive || callStatus === 'opponent_ringing' || callStatus === 'dialing') ? (
+            <CallButton 
+              color="error" 
+              onClick={onEndCall}
+              aria-label="End Call"
+            >
+              <CallEndIcon />
+            </CallButton>
           ) : (
-            <>
-              <MuteButton onClick={onMuteToggle} disabled={!isCallActive}>
-                <Tooltip title={isMuted ? "Unmute" : "Mute"}>
-                  {isMuted ? <MicOffIcon /> : <MicIcon />}
-                </Tooltip>
-              </MuteButton>
-              
-              {(isCallActive || callStatus === 'opponent_ringing' || callStatus === 'dialing') ? (
-                <CallButton 
-                  color="error" 
-                  onClick={onEndCall}
-                  aria-label="End Call"
-                >
-                  <CallEndIcon />
-                </CallButton>
-              ) : (
-                <CallButton 
-                  color="primary" 
-                  onClick={onStartCall}
-                  aria-label="Start Call"
-                >
-                  <CallIcon />
-                </CallButton>
-              )}
-            </>
+            (callStatus === 'idle' || callStatus === 'ended' || callStatus === 'error' || callStatus === 'incoming_ringing') && (
+              <CallButton 
+                color="primary" 
+                onClick={callStatus === 'incoming_ringing' ? () => WebRTCService.answerCall() : onStartCall}
+                aria-label={callStatus === 'incoming_ringing' ? "Answer Call" : "Start Call"}
+              >
+                {callStatus === 'incoming_ringing' ? <CallIcon /> : <CallIcon />}
+              </CallButton>
+            )
           )}
         </Box>
       </CallContainer>
