@@ -10,7 +10,9 @@
     "default_title": "NoBridge"
   },
   "permissions": [
-    "tabs"
+    "tabs",
+    "activeTab",
+    "desktopCapture"
   ],
   "icons": {
     "128": "icon128.png"
