@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "NoBridge – Browser-to-Browser Chat, Calls & File Sharing",
-  "version": "1.1",
-  "description": "Seamless peer-to-peer communication – chat, audio calls, and file sharing directly between browsers.",
+    "name": "NoBridge – Private Chat, Calls & Screen Sharing",
+  "version": "1.2",
+  "description": "Peer-to-peer browser extension for private chat, audio calls, screen sharing, and file transfers — no logins or installs.",
   "background": {
     "service_worker": "background.js"
   },
