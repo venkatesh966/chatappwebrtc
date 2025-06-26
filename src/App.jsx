@@ -72,7 +72,7 @@ function App() {
             textShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
           }}
         >
-          Built by Venkatesh Morpoju ⚡ 2025 • v1.3
+          Built by Venkatesh Morpoju ⚡ 2025 • v1.3.1
         </p>
       </footer>
     </div>
