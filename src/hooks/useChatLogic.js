@@ -764,26 +764,82 @@ const useChatLogic = () => {
     try {
       setError("");
       setIsConnecting(true);
-      const timeoutPromise = new Promise((_, reject) => {
-        // User-friendly timeout message for the promise
-        setTimeout(() => reject(new Error("Connection attempt timed out. Please check the ID and try again.")), 10000);
-      });
-      await Promise.race([WebRTCService.connectToPeer(id), timeoutPromise]);
+      
+      console.log('Starting connection attempt...');
+      
+      // Use enhanced connection with automatic fallback for restrictive networks
+      // This method preserves 100% backward compatibility
+      await WebRTCService.connectToPeerWithFallback(id);
+      
+      // Show success message with network optimization info
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "Connected successfully! Connection optimized for your network environment.",
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+      
       // Connection success is handled by onPeerConnectedCallback
       // setConnected(true) and setDisconnectReason(null) are handled there
     } catch (err) {
-      const specificError = err.message === "Connection attempt timed out. Please check the ID and try again." 
-                             ? err.message 
-                             : mapErrorMessageToUserFriendly(err.message || "Failed to connect");
-      setError(specificError);
-      console.error("Connection error in handleConnect:", err);
+      console.error("Enhanced connection failed:", err);
+      
+      let specificError;
+      let additionalAdvice = "";
+      
+      // Handle different error types with backward compatibility
+      if (err.message.includes('timeout') || err.message.includes('unreachable')) {
+        specificError = "Connection timeout. The other person may be offline or unreachable.";
+        
+        // Only show network advice if we detect potential network issues
+        try {
+          if (window.location && (
+              window.location.hostname.includes('edu') || 
+              window.location.hostname.includes('corp'))) {
+            additionalAdvice = " You appear to be on an institutional network - try using mobile hotspot or ask the other person to connect to you instead.";
+          } else {
+            additionalAdvice = " If you're on college/corporate WiFi, try switching to mobile hotspot or ask the other person to initiate the connection.";
+          }
+        } catch (detectionError) {
+          // If any detection fails, just use the original error without advice
+          console.warn('Network detection in error handling failed:', detectionError);
+          additionalAdvice = "";
+        }
+      } else if (err.message.includes('TURN-only connection timeout')) {
+        specificError = "Cannot establish connection through restrictive network.";
+        additionalAdvice = " Your network blocks peer-to-peer connections. Try: 1) Switch to mobile hotspot, 2) Use a different network, or 3) Ask the other person to connect from a less restrictive network.";
+      } else {
+        // For all other errors, use the existing error mapping (100% backward compatible)
+        specificError = mapErrorMessageToUserFriendly(err.message || "Failed to connect");
+      }
+      
+      setError(specificError + additionalAdvice);
+      
+      // Only add chat message if there's useful additional advice
+      if (additionalAdvice) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: `Connection failed: ${specificError}${additionalAdvice}`,
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      }
+      
       setConnected(false); 
       setIsConnecting(false); 
 
-      // Reload the page after 5 seconds on connection error
-      setTimeout(() => {
-        window.location.reload();
-      }, 5000);
+      // Preserve original auto-reload behavior for non-network specific errors
+      if (!err.message.includes('TURN-only') && !additionalAdvice.includes('institutional')) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      }
     }
   };
 

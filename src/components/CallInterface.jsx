@@ -41,7 +41,7 @@ const CallContainer = styled(Paper)(({ theme }) => ({
   flexDirection: 'column',
   alignItems: 'center',
   gap: theme.spacing(1),
-  zIndex: 1000,
+  zIndex: 9999,
   transition: 'all 0.3s ease',
   minWidth: '200px',
   '&:hover': {
@@ -217,6 +217,7 @@ const CallInterface = ({
         onClose={handleRejectCall}
         aria-labelledby="incoming-call-dialog-title"
         aria-describedby="incoming-call-dialog-description"
+        sx={{ zIndex: 10000 }}
       >
         <DialogTitle id="incoming-call-dialog-title">
           Incoming Call
@@ -247,6 +248,7 @@ const CallInterface = ({
         onClose={handleRejectScreenShare}
         aria-labelledby="screen-share-dialog-title"
         aria-describedby="screen-share-dialog-description"
+        sx={{ zIndex: 10000 }}
       >
         <DialogTitle id="screen-share-dialog-title">
           Incoming Screen Share
@@ -391,6 +393,7 @@ const CallInterface = ({
             vertical: 'bottom',
             horizontal: 'right',
           }}
+          sx={{ zIndex: 10001 }}
         >
           {/* Screen Share Start/Stop */}
           {!isScreenSharing ? (

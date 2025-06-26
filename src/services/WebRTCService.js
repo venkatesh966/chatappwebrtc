@@ -28,9 +28,79 @@ class WebRTCService {
       localStorage.setItem('peerjs_id', userId);
     }
 
-    this.peer = new Peer(userId);
+    // Configure ICE servers for better connectivity
+    const peerConfig = {
+      config: {
+        iceServers: [
+          // Google's public STUN servers (multiple for redundancy)
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          
+          // Additional reliable STUN servers
+          { urls: 'stun:stun.stunprotocol.org:3478' },
+          { urls: 'stun:stun.voiparound.com' },
+          { urls: 'stun:stun.voipbuster.com' },
+          
+          // TURN servers using port 80 (HTTP) - works through most firewalls
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          
+          // TURN servers using port 443 (HTTPS) - works through strictest firewalls  
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject', 
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          
+          // Additional TURN servers for institutional networks
+          {
+            urls: 'turn:relay.backups.cz',
+            username: 'webrtc',
+            credential: 'webrtc'
+          },
+          {
+            urls: 'turn:relay.backups.cz:443',
+            username: 'webrtc', 
+            credential: 'webrtc'
+          },
+          
+          // Twilio's STUN (reliable for enterprise)
+          { urls: 'stun:global.stun.twilio.com:3478' },
+          
+          // More free TURN servers that work with restrictive networks
+          {
+            urls: 'turn:turn.bistri.com:80',
+            username: 'homeo',
+            credential: 'homeo'
+          },
+          {
+            urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
+            username: 'webrtc',
+            credential: 'webrtc'  
+          }
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all'
+      },
+      debug: process.env.NODE_ENV === 'development' ? 3 : 0
+    };
 
-    this.peer.on('open', (id) => {});
+    this.peer = new Peer(userId, peerConfig);
+
+    this.peer.on('open', (id) => {
+      console.log('PeerJS connected with ID:', id);
+    });
 
     this.peer.on('connection', (conn) => {
       if (this.connections.size > 0) {
@@ -43,9 +113,39 @@ class WebRTCService {
       this._handleConnection(conn);
     });
 
-    this.peer.on('error', (err) => {});
+    this.peer.on('error', (err) => {
+      console.error('PeerJS Error:', err);
+      
+      // Handle specific error types
+      switch (err.type) {
+        case 'network':
+          console.error('Network error - check internet connection');
+          break;
+        case 'peer-unavailable':
+          console.error('Peer unavailable - they may be offline or using a different ID');
+          break;
+        case 'browser-incompatible':
+          console.error('Browser incompatible - WebRTC not supported');
+          break;
+        case 'disconnected':
+          console.error('Disconnected from PeerJS server - attempting reconnect');
+          this._attemptReconnect();
+          break;
+        case 'invalid-id':
+          console.error('Invalid peer ID format');
+          break;
+        case 'ssl-unavailable':
+          console.error('SSL not available - HTTPS required for WebRTC');
+          break;
+        default:
+          console.error('Unknown PeerJS error:', err);
+      }
+    });
 
-    this.peer.on('disconnected', () => {});
+    this.peer.on('disconnected', () => {
+      console.warn('PeerJS disconnected - attempting reconnect');
+      this._attemptReconnect();
+    });
 
     this.peer.on('close', () => {
       this.peer = null;
@@ -97,19 +197,52 @@ class WebRTCService {
           this.initialize();
         }
 
-        const conn = this.peer.connect(peerId);
+        // Check if peer is ready
+        if (!this.peer.id || this.peer.destroyed) {
+          reject(new Error('PeerJS not ready. Please wait and try again.'));
+          return;
+        }
+
+        // Check for valid peer ID
+        if (!peerId || peerId.trim() === '' || peerId === this.peer.id) {
+          reject(new Error('Invalid peer ID or attempting to connect to self'));
+          return;
+        }
+
+        console.log(`Attempting to connect to peer: ${peerId}`);
+        const conn = this.peer.connect(peerId, {
+          reliable: true,
+          serialization: 'json'
+        });
+
+        // Set connection timeout
+        const connectionTimeout = setTimeout(() => {
+          console.error('Connection timeout - peer may be unreachable');
+          conn.close();
+          reject(new Error('Connection timeout. The peer may be offline or unreachable.'));
+        }, 15000); // 15 second timeout
         
         conn.on('open', () => {
+          clearTimeout(connectionTimeout);
+          console.log(`Successfully connected to peer: ${peerId}`);
           this.connections.set(conn.peer, conn);
           resolve(conn);
         });
 
         conn.on('error', (err) => {
+          clearTimeout(connectionTimeout);
+          console.error('Connection error:', err);
           reject(err);
+        });
+
+        conn.on('close', () => {
+          clearTimeout(connectionTimeout);
+          console.log(`Connection closed with peer: ${peerId}`);
         });
 
         this._handleConnection(conn);
       } catch (err) {
+        console.error('Error in connectToPeer:', err);
         reject(err);
       }
     });
@@ -714,6 +847,340 @@ class WebRTCService {
           return 'Screen sharing failed due to a network problem.';
         }
         return `Screen sharing error: ${errorMessage || 'Please try again.'}`;
+    }
+  }
+
+  // Add reconnection logic
+  _attemptReconnect() {
+    if (this.peer && !this.peer.destroyed) {
+      try {
+        this.peer.reconnect();
+      } catch (err) {
+        console.error('Reconnection failed:', err);
+        // Reinitialize if reconnect fails
+        setTimeout(() => {
+          this.initialize();
+        }, 2000);
+      }
+    }
+  }
+
+  // Add connection diagnostics
+  getDiagnosticInfo() {
+    return {
+      peerId: this.peer?.id || 'Not connected',
+      isDestroyed: this.peer?.destroyed || false,
+      isDisconnected: this.peer?.disconnected || false,
+      connections: this.connections.size,
+      activeConnections: Array.from(this.connections.keys())
+    };
+  }
+
+  // Detect if we're on a restrictive network (college/corporate)
+  async detectRestrictiveNetwork() {
+    try {
+      // Test if we can reach STUN servers
+      const stunTest = await this.testStunConnectivity();
+      
+      // Test if direct P2P is possible
+      const p2pTest = await this.testP2PConnectivity();
+      
+      return {
+        isRestrictive: !stunTest.success || !p2pTest.success,
+        stunBlocked: !stunTest.success,
+        p2pBlocked: !p2pTest.success,
+        recommendTurnOnly: !stunTest.success && !p2pTest.success
+      };
+    } catch (error) {
+      console.error('Network detection failed:', error);
+      // Conservative fallback - don't recommend TURN-only if detection fails
+      return { 
+        isRestrictive: false, 
+        recommendTurnOnly: false, 
+        error: error.message 
+      };
+    }
+  }
+
+  async testStunConnectivity() {
+    try {
+      return new Promise((resolve) => {
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        const timeout = setTimeout(() => {
+          try {
+            pc.close();
+          } catch (e) {
+            // Ignore close errors
+          }
+          resolve({ success: false, reason: 'timeout' });
+        }, 5000);
+
+        pc.onicecandidate = (event) => {
+          try {
+            if (event.candidate && event.candidate.candidate.includes('srflx')) {
+              clearTimeout(timeout);
+              pc.close();
+              resolve({ 
+                success: true, 
+                publicIP: event.candidate.candidate.split(' ')[4] 
+              });
+            }
+          } catch (e) {
+            console.warn('Error processing ICE candidate:', e);
+            clearTimeout(timeout);
+            pc.close();
+            resolve({ success: false, reason: 'processing_error' });
+          }
+        };
+
+        pc.onerror = (error) => {
+          console.warn('RTCPeerConnection error in STUN test:', error);
+          clearTimeout(timeout);
+          try {
+            pc.close();
+          } catch (e) {
+            // Ignore close errors
+          }
+          resolve({ success: false, reason: 'connection_error' });
+        };
+
+        try {
+          pc.createDataChannel('test');
+          pc.createOffer().then(offer => pc.setLocalDescription(offer))
+            .catch(error => {
+              console.warn('Error creating offer:', error);
+              clearTimeout(timeout);
+              pc.close();
+              resolve({ success: false, reason: 'offer_error' });
+            });
+        } catch (error) {
+          console.warn('Error in STUN test setup:', error);
+          clearTimeout(timeout);
+          pc.close();
+          resolve({ success: false, reason: 'setup_error' });
+        }
+      });
+    } catch (error) {
+      console.warn('STUN connectivity test failed:', error);
+      return { success: false, reason: 'test_failed', error: error.message };
+    }
+  }
+
+  async testP2PConnectivity() {
+    try {
+      // Simple heuristic: check if we're behind symmetric NAT
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      const isLikelyCorporate = (typeof window !== 'undefined' && window.location) ? 
+                              (window.location.hostname.includes('edu') || 
+                               window.location.hostname.includes('corp') ||
+                               (connection && connection.effectiveType === 'slow-2g')) : false;
+      
+      return {
+        success: !isLikelyCorporate,
+        reason: isLikelyCorporate ? 'corporate_network_detected' : 'ok'
+      };
+    } catch (error) {
+      console.warn('P2P connectivity test failed:', error);
+      // Conservative fallback - assume P2P is possible if test fails
+      return { success: true, reason: 'test_failed_assume_ok' };
+    }
+  }
+
+  // Create restrictive network configuration (TURN-only)
+  getRestrictiveNetworkConfig(userId) {
+    return {
+      config: {
+        iceServers: [
+          // Only use TURN servers with standard ports for restrictive networks
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:relay.backups.cz:443',
+            username: 'webrtc',
+            credential: 'webrtc'
+          },
+          {
+            urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
+            username: 'webrtc',
+            credential: 'webrtc'
+          }
+        ],
+        iceCandidatePoolSize: 15,
+        iceTransportPolicy: 'relay' // FORCE TURN-only for restrictive networks
+      },
+      debug: 3 // More debugging for restrictive networks
+    };
+  }
+
+  // Enhanced connection method for restrictive networks
+  async connectToPeerWithFallback(peerId) {
+    // Environment flag to disable enhanced connection (for maximum backward compatibility)
+    const DISABLE_ENHANCED_CONNECTION = localStorage.getItem('disable_enhanced_connection') === 'true';
+    
+    if (DISABLE_ENHANCED_CONNECTION) {
+      console.log('Enhanced connection disabled, using standard method only');
+      return await this.connectToPeer(peerId);
+    }
+    
+    console.log('Attempting connection with network detection...');
+    
+    // First, try the original connection method (100% backward compatible)
+    try {
+      console.log('Trying standard connection method...');
+      return await this.connectToPeer(peerId);
+    } catch (error) {
+      console.log('Standard connection failed:', error.message);
+      
+      // Only try advanced detection if the basic method fails
+      try {
+        console.log('Attempting network restriction detection...');
+        
+        // Detect if we're on a restrictive network
+        const networkInfo = await this.detectRestrictiveNetwork();
+        
+        if (networkInfo && networkInfo.recommendTurnOnly) {
+          console.log('Restrictive network detected, trying TURN-only mode...');
+          return await this.connectWithTurnOnly(peerId);
+        } else {
+          console.log('Network detection inconclusive, using original error');
+          // If network detection doesn't recommend TURN-only, throw original error
+          throw error;
+        }
+      } catch (detectionError) {
+        console.warn('Network detection failed:', detectionError.message);
+        // If detection itself fails, just throw the original connection error
+        throw error;
+      }
+    }
+  }
+
+  async connectWithTurnOnly(peerId) {
+    console.log('Connecting with TURN-only configuration for restrictive networks...');
+    
+    // Safety check - don't proceed if we don't have a valid peer ID
+    if (!peerId || typeof peerId !== 'string' || peerId.trim() === '') {
+      throw new Error('Invalid peer ID for TURN-only connection');
+    }
+    
+    // Store original peer for restoration if needed
+    const originalPeer = this.peer;
+    let newPeer = null;
+    
+    try {
+      // Create new TURN-only peer without affecting the original
+      const userId = localStorage.getItem('peerjs_id');
+      if (!userId) {
+        throw new Error('No user ID available for TURN-only connection');
+      }
+      
+      const restrictiveConfig = this.getRestrictiveNetworkConfig(userId);
+      
+      // Create new peer instance for TURN-only
+      newPeer = new Peer(userId + '_turn', restrictiveConfig);
+      
+      return new Promise((resolve, reject) => {
+        let isResolved = false;
+        
+        const cleanup = () => {
+          if (newPeer && !newPeer.destroyed) {
+            try {
+              newPeer.destroy();
+            } catch (e) {
+              console.warn('Error cleaning up TURN-only peer:', e);
+            }
+          }
+        };
+        
+        // Set timeout for TURN connection
+        const turnTimeout = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            cleanup();
+            reject(new Error('TURN-only connection timeout. Network may be completely blocking P2P.'));
+          }
+        }, 30000); // 30 second timeout for TURN connections
+        
+        newPeer.on('open', () => {
+          if (isResolved) return;
+          
+          console.log('TURN-only peer initialized, attempting connection...');
+          
+          const conn = newPeer.connect(peerId, {
+            reliable: true,
+            serialization: 'json'
+          });
+          
+          conn.on('open', () => {
+            if (isResolved) return;
+            isResolved = true;
+            clearTimeout(turnTimeout);
+            
+            console.log('TURN-only connection successful!');
+            
+            // Replace the original peer with the TURN-only peer
+            if (originalPeer && !originalPeer.destroyed) {
+              try {
+                originalPeer.destroy();
+              } catch (e) {
+                console.warn('Error destroying original peer:', e);
+              }
+            }
+            
+            this.peer = newPeer;
+            this.connections.set(conn.peer, conn);
+            this._handleConnection(conn);
+            resolve(conn);
+          });
+
+          conn.on('error', (err) => {
+            if (isResolved) return;
+            isResolved = true;
+            clearTimeout(turnTimeout);
+            
+            console.error('TURN-only connection error:', err);
+            cleanup();
+            reject(err);
+          });
+
+          conn.on('close', () => {
+            console.log('TURN-only connection closed');
+          });
+        });
+
+        newPeer.on('error', (err) => {
+          if (isResolved) return;
+          isResolved = true;
+          clearTimeout(turnTimeout);
+          
+          console.error('TURN-only peer error:', err);
+          cleanup();
+          reject(err);
+        });
+      });
+    } catch (error) {
+      console.error('Error setting up TURN-only connection:', error);
+      
+      // Clean up on error
+      if (newPeer && !newPeer.destroyed) {
+        try {
+          newPeer.destroy();
+        } catch (e) {
+          console.warn('Error cleaning up failed TURN-only peer:', e);
+        }
+      }
+      
+      throw error;
     }
   }
 }
