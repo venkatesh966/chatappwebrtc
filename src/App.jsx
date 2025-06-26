@@ -52,6 +52,29 @@ function App() {
       <div style={{ marginBottom: '16px' }}>
         <Chat boxWidth={550} />
       </div>
+      
+      {/* Page Footer */}
+      <footer
+        style={{
+          marginTop: 'auto',
+          paddingTop: '20px',
+          paddingBottom: '10px',
+          width: '100%',
+          textAlign: 'center',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: '0.8rem',
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontWeight: 400,
+            textShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          Built by Venkatesh Morpoju ⚡ 2025 • v1.3
+        </p>
+      </footer>
     </div>
   )
 }
