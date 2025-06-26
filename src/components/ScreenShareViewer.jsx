@@ -22,7 +22,7 @@ const ScreenShareContainer = styled(Paper)(({ theme, isFullscreen }) => ({
   left: isFullscreen ? 0 : 'auto',
   width: isFullscreen ? '100vw' : '100%',
   height: isFullscreen ? '100vh' : 'auto',
-  maxHeight: isFullscreen ? '100vh' : '60vh',
+  maxHeight: isFullscreen ? '100vh' : '40vh',
   backgroundColor: '#000',
   borderRadius: isFullscreen ? 0 : theme.spacing(2),
   overflow: 'hidden',

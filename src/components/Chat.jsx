@@ -23,6 +23,8 @@ import { alpha } from "@mui/material/styles";
 import useChatLogic from "../hooks/useChatLogic";
 import ChatConnection from "./ChatConnection";
 import ChatInterface from "./ChatInterface";
+import InfoIcon from "@mui/icons-material/Info";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 const Chat = ({ boxWidth = 420 }) => {
   const {
@@ -176,110 +178,226 @@ const Chat = ({ boxWidth = 420 }) => {
   };
 
   return (
-    <Paper
-      elevation={8}
-      sx={{
-        width: { xs: "98vw", sm: boxWidth, md: boxWidth },
-        minHeight: { xs: "80vh", sm: 560, md: 580 },
-        maxHeight: { xs: "98vh", sm: 600, md: 650 },
-        mx: "auto",
-        borderRadius: 4,
-        p: { xs: 0.5, sm: 1.5, md: 2 },
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "stretch",
-        justifyContent: "flex-start",
-        boxShadow: "0 4px 24px 0 rgba(31, 38, 135, 0.10)",
-        background: `linear-gradient(120deg, ${alpha(
-          "#fff",
-          0.97
-        )} 70%, ${alpha("#e0f7fa", 0.8)} 100%)`,
-        backdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.18)",
-        overflow: "hidden",
-      }}
-    >
-      <Box
+    <>
+      <Paper
+        elevation={8}
         sx={{
-          background: "linear-gradient(90deg, #4f8cff 0%, #3ff57a 100%)",
-          py: 1,
-          px: 2,
+          width: { xs: "98vw", sm: boxWidth, md: boxWidth },
+          minHeight: { xs: "80vh", sm: 560, md: 580 },
+          maxHeight: { xs: "98vh", sm: 600, md: 650 },
+          mx: "auto",
+          borderRadius: 4,
+          p: { xs: 0.5, sm: 1.5, md: 2 },
           display: "flex",
-          alignItems: "center",
-          gap: 1.5,
-          borderBottomLeftRadius: 18,
-          borderBottomRightRadius: 18,
-          minHeight: 56,
+          flexDirection: "column",
+          alignItems: "stretch",
+          justifyContent: "flex-start",
+          boxShadow: "0 4px 24px 0 rgba(31, 38, 135, 0.10)",
+          background: `linear-gradient(120deg, ${alpha(
+            "#fff",
+            0.97
+          )} 70%, ${alpha("#e0f7fa", 0.8)} 100%)`,
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          overflow: "hidden",
         }}
       >
-        <Avatar
+        <Box
           sx={{
-            bgcolor: "white",
-            color: "#7c4dff",
-            width: 36,
-            height: 36,
-            fontSize: 24,
-            border: "1.5px solid #3b6be0",
+            background: "linear-gradient(90deg, #4f8cff 0%, #3ff57a 100%)",
+            py: 1,
+            px: 2,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 8px 0 rgba(60,60,60,0.06)",
+            gap: 1.5,
+            borderBottomLeftRadius: 18,
+            borderBottomRightRadius: 18,
+            minHeight: 56,
           }}
         >
-          <img
-            src="/icon128.png"
-            alt="Icon"
-            style={{ width: 24, height: 24 }}
-          />
-        </Avatar>
-        <Typography
-          variant="h6"
-          sx={{
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: 17,
-            userSelect: "all",
-            letterSpacing: 0.3,
-            ml: 0.5,
-            display: "flex",
-            alignItems: "center",
-            gap: 0.8,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box 
-              sx={{
-                width: 10, 
-                height: 10, 
-                borderRadius: '50%',
-                bgcolor: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                mr: 0.7,
-                boxShadow: '0 0 2px rgba(0,0,0,0.2)', 
-              }}
-            >
+          <Avatar
+            sx={{
+              bgcolor: "white",
+              color: "#7c4dff",
+              width: 36,
+              height: 36,
+              fontSize: 24,
+              border: "1.5px solid #3b6be0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px 0 rgba(60,60,60,0.06)",
+            }}
+          >
+            <img
+              src="/icon128.png"
+              alt="Icon"
+              style={{ width: 24, height: 24 }}
+            />
+          </Avatar>
+          <Typography
+            variant="h6"
+            sx={{
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 17,
+              userSelect: "all",
+              letterSpacing: 0.3,
+              ml: 0.5,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.8,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Box 
-                component="span"
                 sx={{
-                  width: 6, 
-                  height: 6, 
+                  width: 10, 
+                  height: 10, 
                   borderRadius: '50%',
-                  bgcolor: myId ? 'success.main' : 'grey.400',
-                  display: 'block', 
+                  bgcolor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 0.7,
+                  boxShadow: '0 0 2px rgba(0,0,0,0.2)', 
                 }}
-              />
+              >
+                <Box 
+                  component="span"
+                  sx={{
+                    width: 6, 
+                    height: 6, 
+                    borderRadius: '50%',
+                    bgcolor: myId ? 'success.main' : 'grey.400',
+                    display: 'block', 
+                  }}
+                />
+              </Box>
+              Your ID:
             </Box>
-            Your ID:
-          </Box>
-          <b style={{ color: "#fff", fontWeight: 600 }}>
-            {myId}
-          </b>
-          <Tooltip title={copied ? "Copied!" : "Copy"} placement="top" arrow>
+            <b style={{ color: "#fff", fontWeight: 600 }}>
+              {myId}
+            </b>
+            <Tooltip title={copied ? "Copied!" : "Copy"} placement="top" arrow>
+              <IconButton
+                size="small"
+                onClick={handleCopyId}
+                sx={{
+                  color: "#fff",
+                  bgcolor: "rgba(0,0,0,0.08)",
+                  "&:hover": { bgcolor: "rgba(0,0,0,0.18)" },
+                  p: 0.5,
+                }}
+              >
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+                      <Tooltip 
+            title={
+              <Box sx={{ p: 1.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2, color: '#fff' }}>
+                  🔧 Connection Issues?
+                </Typography>
+                
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                    <Box component="span" sx={{ color: '#ff6b6b', fontWeight: 600 }}>•</Box>
+                    <Box>Restricted WiFi/Corporate networks may block connections</Box>
+                  </Typography>
+                  
+                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                    <Box component="span" sx={{ color: '#ff6b6b', fontWeight: 600 }}>•</Box>
+                    <Box>Some mobile hotspots have limitations</Box>
+                  </Typography>
+
+                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                    <Box component="span" sx={{ color: '#ff6b6b', fontWeight: 600 }}>•</Box>
+                    <Box>College/University networks often have strict firewalls</Box>
+                  </Typography>
+                </Box>
+
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#4dabf7' }}>
+                    💡 Try these solutions:
+                  </Typography>
+                  
+                  <Typography variant="body2" sx={{ mb: 0.8, display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
+                    <Box component="span" sx={{ color: '#51cf66' }}>→</Box>
+                    <Box>Ask the other person to connect to you instead</Box>
+                  </Typography>
+                  
+                  <Typography variant="body2" sx={{ mb: 0.8, display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
+                    <Box component="span" sx={{ color: '#51cf66' }}>→</Box>
+                    <Box>Switch to a different network if possible</Box>
+                  </Typography>
+
+                  <Typography variant="body2" sx={{ mb: 0.8, display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
+                    <Box component="span" sx={{ color: '#51cf66' }}>→</Box>
+                    <Box>Try using mobile data instead of WiFi</Box>
+                  </Typography>
+
+                  <Typography variant="body2" sx={{ mb: 0.8, display: 'flex', alignItems: 'flex-start', gap: 1, pl: 1 }}>
+                    <Box component="span" sx={{ color: '#51cf66' }}>→</Box>
+                    <Box>Both users should be on similar network types</Box>
+                  </Typography>
+                </Box>
+
+                <Box sx={{ 
+                  mb: 2,
+                  p: 1,
+                  bgcolor: 'rgba(255,255,255,0.05)',
+                  borderRadius: 1,
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#fbbf24' }}>
+                    📧 Need help or have feedback?
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#e5e7eb', fontSize: '0.85rem' }}>
+                    Contact: venkateshmorpoju@gmail.com
+                  </Typography>
+                </Box>
+
+                <Box 
+                  onClick={() => window.location.reload()}
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1, 
+                    pt: 1.5,
+                    borderTop: '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    '&:hover': { opacity: 0.8 }
+                  }}
+                >
+                  <RefreshIcon fontSize="small" sx={{ color: '#ffd43b' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#ffd43b' }}>
+                    Click here to refresh and try again
+                  </Typography>
+                </Box>
+              </Box>
+            } 
+            placement="bottom-end" 
+            arrow
+            componentsProps={{
+              tooltip: {
+                sx: {
+                  maxWidth: 380,
+                  bgcolor: 'rgba(0, 0, 0, 0.92)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 2,
+                  '& .MuiTooltip-arrow': {
+                    color: 'rgba(0, 0, 0, 0.92)',
+                  },
+                },
+              },
+            }}
+          >
             <IconButton
               size="small"
-              onClick={handleCopyId}
               sx={{
                 color: "#fff",
                 bgcolor: "rgba(0,0,0,0.08)",
@@ -287,65 +405,82 @@ const Chat = ({ boxWidth = 420 }) => {
                 p: 0.5,
               }}
             >
-              <ContentCopyIcon fontSize="small" />
+              <InfoIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-      </Box>
-      <Box
-        sx={{
-          p: 2,
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          bgcolor: "#fafbfc",
-          pb: 0,
-          minHeight: 0,
-          overflow: 'hidden',
-        }}
-      >
-        {error && (
-          <Alert 
-            severity="error" 
-            sx={{ mb: 1 }}
-            onClose={() => setError("")}
-          >
-            {error}
-          </Alert>
-        )}
-        {!connected ? (
-          <ChatConnection
-            isConnecting={isConnecting}
-            peerIdToConnect={peerIdToConnect}
-            onPeerIdChange={handlePeerIdInputChange}
-            onConnect={handleLocalConnect}
-            error={error}
-            disconnectReason={disconnectReason}
+        </Box>
+        <Box
+          sx={{
+            p: 2,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            bgcolor: "#fafbfc",
+            pb: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {error && (
+            <Alert 
+              severity="error" 
+              sx={{ mb: 1 }}
+              onClose={() => setError("")}
+            >
+              {error}
+            </Alert>
+          )}
+          {!connected ? (
+            <ChatConnection
+              isConnecting={isConnecting}
+              peerIdToConnect={peerIdToConnect}
+              onPeerIdChange={handlePeerIdInputChange}
+              onConnect={handleLocalConnect}
+              error={error}
+              disconnectReason={disconnectReason}
+            />
+          ) : (
+            <ChatInterface
+              messages={messages}
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              onSendMessage={handleLocalSendMessage}
+              fileInputRef={fileInputRef}
+              onFileSelect={handleLocalFileSelect}
+              connectedPeerId={connectedPeerId}
+              onEndSession={handleEndSession}
+              fileProgress={fileProgress}
+              receivingFileProgress={receivingFileProgress}
+              isCallActive={isCallActive}
+              onStartCall={() => handleStartCall(connectedPeerId)}
+              formatTime={formatTime}
+              endRef={endRef}
+              isPeerTyping={isPeerTyping}
+              onNotifyTypingState={notifyTypingState}
+              connectedPeerIdForTyping={connectedPeerId}
+              myId={myId}
+            />
+          )}
+        </Box>
+        
+        {/* Screen Share Viewer */}
+        {viewingScreenShare && screenShareStream && (
+          <ScreenShareViewer
+            stream={screenShareStream}
+            isVisible={viewingScreenShare}
+            onClose={handleStopScreenShare}
+            screenShareType={screenShareType}
+            quality={screenShareQuality}
+            duration={screenShareDuration}
           />
-        ) : (
-          <ChatInterface
-            messages={messages}
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            onSendMessage={handleLocalSendMessage}
-            fileInputRef={fileInputRef}
-            onFileSelect={handleLocalFileSelect}
-            connectedPeerId={connectedPeerId}
-            onEndSession={handleEndSession}
-            fileProgress={fileProgress}
-            receivingFileProgress={receivingFileProgress}
-            isCallActive={isCallActive}
-            onStartCall={() => handleStartCall(connectedPeerId)}
-            formatTime={formatTime}
-            endRef={endRef}
-            isPeerTyping={isPeerTyping}
-            onNotifyTypingState={notifyTypingState}
-            connectedPeerIdForTyping={connectedPeerId}
-            myId={myId}
-          />
         )}
-      </Box>
+        
+        <audio ref={audioRef} autoPlay />
+        <audio ref={incomingRingtoneAudioRef} src="/sounds/incoming_ringtone.mp3" loop />
+        <audio ref={outgoingRingingAudioRef} src="/sounds/outgoing_ringing.mp3" loop />
+      </Paper>
+
+      {/* CallInterface moved outside Paper for proper fixed positioning */}
       {connected && (
         <CallInterface
           // Audio call props
@@ -374,23 +509,7 @@ const Chat = ({ boxWidth = 420 }) => {
           onRejectScreenShare={handleRejectScreenShare}
         />
       )}
-      
-      {/* Screen Share Viewer */}
-      {viewingScreenShare && screenShareStream && (
-        <ScreenShareViewer
-          stream={screenShareStream}
-          isVisible={viewingScreenShare}
-          onClose={handleStopScreenShare}
-          screenShareType={screenShareType}
-          quality={screenShareQuality}
-          duration={screenShareDuration}
-        />
-      )}
-      
-      <audio ref={audioRef} autoPlay />
-      <audio ref={incomingRingtoneAudioRef} src="/sounds/incoming_ringtone.mp3" loop />
-      <audio ref={outgoingRingingAudioRef} src="/sounds/outgoing_ringing.mp3" loop />
-    </Paper>
+    </>
   );
 };
 

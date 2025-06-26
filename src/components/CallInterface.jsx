@@ -41,7 +41,7 @@ const CallContainer = styled(Paper)(({ theme }) => ({
   flexDirection: 'column',
   alignItems: 'center',
   gap: theme.spacing(1),
-  zIndex: 1000,
+  zIndex: 9999,
   transition: 'all 0.3s ease',
   minWidth: '200px',
   '&:hover': {
@@ -385,11 +385,33 @@ const CallInterface = ({
           onClose={handleMenuClose}
           anchorOrigin={{
             vertical: 'top',
-            horizontal: 'right',
+            horizontal: 'center',
           }}
           transformOrigin={{
             vertical: 'bottom',
-            horizontal: 'right',
+            horizontal: 'center',
+          }}
+          MenuListProps={{
+            style: {
+              zIndex: 99999,
+            }
+          }}
+          slotProps={{
+            paper: {
+              sx: {
+                zIndex: 99999,
+                mt: -1,
+                position: 'fixed',
+              }
+            },
+            root: {
+              sx: {
+                zIndex: 99999,
+              }
+            }
+          }}
+          sx={{
+            zIndex: 99999,
           }}
         >
           {/* Screen Share Start/Stop */}

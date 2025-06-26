@@ -347,7 +347,7 @@ class WebRTCService {
         let callErrorMessage = 'Call failed';
         if (err && err.type) {
           switch (err.type) {
-            case 'peer-unavailable': callErrorMessage = `Call failed: Peer ${peerId} is unavailable.`; break;
+            case 'peer-unavailable': callErrorMessage = `Call failed: Peer ${peerId} is unavailable. Ask them to connect to you instead.`; break;
             case 'connection-error': callErrorMessage = 'Call failed due to a connection error.'; break;
             case 'network': callErrorMessage = 'Call failed due to a network error.'; break;
             case 'webrtc': callErrorMessage = 'Call failed due to a WebRTC error.'; break;
@@ -705,7 +705,7 @@ class WebRTCService {
         return 'Screen sharing failed due to a technical error. Please try again.';
       default:
         if (errorMessage.includes('peer-unavailable')) {
-          return 'Cannot share screen: The other person is unavailable.';
+          return 'Cannot share screen: The other person is unavailable. Ask them to connect to you instead.';
         }
         if (errorMessage.includes('connection-error')) {
           return 'Screen sharing failed due to a connection error.';

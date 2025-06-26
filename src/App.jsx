@@ -6,7 +6,7 @@ function App() {
     <div
       className="app-fancy-bg"
       style={{
-        height: '100vh',
+        minHeight: '100vh',
         width: '100vw',
         display: 'flex',
         flexDirection: 'column',
@@ -14,7 +14,9 @@ function App() {
         justifyContent: 'flex-start',
         background: 'linear-gradient(135deg, #4f8cff 0%, #3ff57a 100%)',
         backgroundAttachment: 'fixed',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        paddingBottom: '20px',
       }}
     >
       <h1

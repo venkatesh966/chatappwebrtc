@@ -17,7 +17,7 @@ const mapErrorMessageToUserFriendly = (technicalError) => {
     return "Could not initiate the call. Please try again shortly.";
   }
   if (technicalError.includes("peer-unavailable") || (technicalError.includes("Peer") && technicalError.includes("is unavailable"))) {
-    return "Could not reach the other person. They might be busy or disconnected.";
+    return "Could not reach the other person. They might be busy, disconnected, or ask them to connect to you instead.";
   }
   if (technicalError.includes("connection-error") || technicalError.includes("Connection error")) {
     return "Call failed. Please check your internet connection.";
@@ -140,6 +140,9 @@ const useChatLogic = () => {
   const [incomingCall, setIncomingCall] = useState(null);
   const screenShareTimerRef = useRef(null);
   const screenShareStartTimeRef = useRef(null);
+
+  // Set to track recent system messages to prevent duplicates
+  const recentSystemMessagesRef = useRef(new Set());
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -660,15 +663,8 @@ const useChatLogic = () => {
         setIncomingScreenShare(null);
         stopScreenShareTimer();
         
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: "Screen sharing has ended.",
-            sender: "system",
-            isSystem: true,
-            time: new Date(),
-          },
-        ]);
+        // Use unique message function to prevent duplicates
+        addUniqueSystemMessage("Screen sharing has ended.");
       } else if (status === "incoming") {
         setIncomingScreenShare(stream);
         setMessages((prev) => [
@@ -766,13 +762,13 @@ const useChatLogic = () => {
       setIsConnecting(true);
       const timeoutPromise = new Promise((_, reject) => {
         // User-friendly timeout message for the promise
-        setTimeout(() => reject(new Error("Connection attempt timed out. Please check the ID and try again.")), 10000);
+        setTimeout(() => reject(new Error("Connection attempt timed out. Please check the ID and try again, or ask the other person to connect to you instead.")), 10000);
       });
       await Promise.race([WebRTCService.connectToPeer(id), timeoutPromise]);
       // Connection success is handled by onPeerConnectedCallback
       // setConnected(true) and setDisconnectReason(null) are handled there
     } catch (err) {
-      const specificError = err.message === "Connection attempt timed out. Please check the ID and try again." 
+      const specificError = err.message === "Connection attempt timed out. Please check the ID and try again, or ask the other person to connect to you instead." 
                              ? err.message 
                              : mapErrorMessageToUserFriendly(err.message || "Failed to connect");
       setError(specificError);
@@ -1141,6 +1137,34 @@ const useChatLogic = () => {
         },
       ]);
     }
+  };
+
+  // Helper function to add unique system messages
+  const addUniqueSystemMessage = (messageText) => {
+    // Check if this exact message was recently added
+    if (recentSystemMessagesRef.current.has(messageText)) {
+      console.log('Duplicate system message prevented:', messageText);
+      return;
+    }
+    
+    // Add to recent messages set
+    recentSystemMessagesRef.current.add(messageText);
+    
+    // Clean up old messages after 5 seconds
+    setTimeout(() => {
+      recentSystemMessagesRef.current.delete(messageText);
+    }, 5000);
+    
+    // Add the message
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: messageText,
+        sender: "system",
+        isSystem: true,
+        time: new Date(),
+      },
+    ]);
   };
 
   // The 'peerId' state in this hook represents the *connected* peer's ID after successful connection.
