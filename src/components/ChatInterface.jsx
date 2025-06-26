@@ -488,7 +488,7 @@ const ChatInterface = ({
             onChange={onFileSelect}
             multiple
           />
-          <Tooltip title="Attach files (max 330MB, max 3 files at a time)" arrow>
+          <Tooltip title="Attach files (max 1GB, max 7 files at a time)" arrow>
             <span>
               <IconButton
                 onClick={() => fileInputRef.current?.click()}
