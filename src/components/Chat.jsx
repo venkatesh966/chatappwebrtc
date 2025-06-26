@@ -16,7 +16,8 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
-import AudioCall from "./AudioCall";
+import CallInterface from "./CallInterface";
+import ScreenShareViewer from "./ScreenShareViewer";
 import CallIcon from "@mui/icons-material/Call";
 import { alpha } from "@mui/material/styles";
 import useChatLogic from "../hooks/useChatLogic";
@@ -44,6 +45,20 @@ const Chat = ({ boxWidth = 420 }) => {
     audioRef,
     incomingRingtoneAudioRef,
     outgoingRingingAudioRef,
+    
+    // Screen sharing states
+    isScreenSharing,
+    screenShareStatus,
+    screenShareType,
+    screenShareDuration,
+    screenShareQuality,
+    viewingScreenShare,
+    screenShareStream,
+    incomingScreenShare,
+    
+    // Call states
+    incomingCall,
+    
     handleConnect,
     handleSendMessage: hookHandleSendMessage,
     handleEndSession,
@@ -56,6 +71,17 @@ const Chat = ({ boxWidth = 420 }) => {
     connectedPeerId,
     isPeerTyping,
     notifyTypingState,
+    
+    // Screen sharing handlers
+    handleStartScreenShare,
+    handleStopScreenShare,
+    handleAnswerScreenShare,
+    handleRejectScreenShare,
+    handleScreenShareQualityChange,
+    
+    // Call handlers
+    handleAnswerCall,
+    handleRejectCall,
   } = useChatLogic();
 
   const [peerIdToConnect, setPeerIdToConnect] = useState("");
@@ -321,7 +347,8 @@ const Chat = ({ boxWidth = 420 }) => {
         )}
       </Box>
       {connected && (
-        <AudioCall
+        <CallInterface
+          // Audio call props
           isCallActive={isCallActive}
           onStartCall={() => handleStartCall(connectedPeerId)}
           onEndCall={handleEndCall}
@@ -329,8 +356,37 @@ const Chat = ({ boxWidth = 420 }) => {
           isMuted={isMuted}
           callStatus={callStatus}
           callDuration={callDuration}
+          incomingCall={incomingCall}
+          onAnswerCall={handleAnswerCall}
+          onRejectCall={handleRejectCall}
+          
+          // Screen sharing props
+          isScreenSharing={isScreenSharing}
+          screenShareStatus={screenShareStatus}
+          screenShareType={screenShareType}
+          screenShareDuration={screenShareDuration}
+          screenShareQuality={screenShareQuality}
+          onStartScreenShare={(options) => handleStartScreenShare(connectedPeerId, options)}
+          onStopScreenShare={handleStopScreenShare}
+          onScreenShareQualityChange={handleScreenShareQualityChange}
+          incomingScreenShare={incomingScreenShare}
+          onAnswerScreenShare={handleAnswerScreenShare}
+          onRejectScreenShare={handleRejectScreenShare}
         />
       )}
+      
+      {/* Screen Share Viewer */}
+      {viewingScreenShare && screenShareStream && (
+        <ScreenShareViewer
+          stream={screenShareStream}
+          isVisible={viewingScreenShare}
+          onClose={handleStopScreenShare}
+          screenShareType={screenShareType}
+          quality={screenShareQuality}
+          duration={screenShareDuration}
+        />
+      )}
+      
       <audio ref={audioRef} autoPlay />
       <audio ref={incomingRingtoneAudioRef} src="/sounds/incoming_ringtone.mp3" loop />
       <audio ref={outgoingRingingAudioRef} src="/sounds/outgoing_ringing.mp3" loop />

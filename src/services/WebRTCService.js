@@ -11,6 +11,14 @@ class WebRTCService {
     this.localStream = null;
     this.call = null;
     this.isMuted = false;
+    
+    // Screen sharing properties
+    this.screenStream = null;
+    this.screenCall = null;
+    this.isScreenSharing = false;
+    this.onScreenShareStatusCallback = null;
+    this.screenShareType = null; // 'sending' | 'receiving' | null
+    this.screenShareQuality = 'medium'; // 'low' | 'medium' | 'high'
   }
 
   initialize() {
@@ -49,8 +57,16 @@ class WebRTCService {
         connToCaller.send({ type: 'call_ringing_ack' });
       } else {}
 
-      if (this.onCallStatusCallback) {
-        this.onCallStatusCallback('incoming', call);
+      // Check if this is a screen share call
+      if (call.metadata && call.metadata.type === 'screen-share') {
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('incoming', call);
+        }
+      } else {
+        // Regular audio call
+        if (this.onCallStatusCallback) {
+          this.onCallStatusCallback('incoming', call);
+        }
       }
     });
 
@@ -258,6 +274,9 @@ class WebRTCService {
       }
     });
 
+    // Clean up screen sharing
+    this.endScreenShare();
+
     window.removeEventListener('beforeunload', this._handleBrowserClose.bind(this));
 
     if (this.peer) {
@@ -444,6 +463,258 @@ class WebRTCService {
 
   setOnCallStatusCallback(callback) {
     this.onCallStatusCallback = callback;
+  }
+
+  // Screen sharing methods
+  async startScreenShare(peerId, options = {}) {
+    if (!this.peer || !this.peer.id || this.peer.destroyed || (typeof this.peer.disconnected === 'boolean' && this.peer.disconnected)) {
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, 'WebRTC service is not ready or peer is disconnected. Please check connection.');
+      }
+      return false;
+    }
+
+    if (!peerId) {
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, 'Cannot start screen share: Target peer ID is missing.');
+      }
+      return false;
+    }
+
+    if (this.peer && this.peer.id === peerId) {
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, 'Cannot share screen with yourself.');
+      }
+      return false;
+    }
+
+    // Check if already sharing
+    if (this.isScreenSharing) {
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, 'Already sharing screen. Stop current session first.');
+      }
+      return false;
+    }
+
+    try {
+      // Define screen share constraints based on quality
+      const constraints = this._getScreenShareConstraints(options.quality || this.screenShareQuality);
+      
+      // Request screen sharing permission
+      this.screenStream = await navigator.mediaDevices.getDisplayMedia(constraints);
+      
+      if (!this.peer || typeof this.peer.call !== 'function' || this.peer.destroyed || (typeof this.peer.disconnected === 'boolean' && this.peer.disconnected)) {
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('error', null, 'Failed to initiate screen share: WebRTC peer object became invalid.');
+        }
+        if (this.screenStream) {
+          this.screenStream.getTracks().forEach(track => track.stop());
+          this.screenStream = null;
+        }
+        return false;
+      }
+
+      // Create screen share call
+      this.screenCall = this.peer.call(peerId, this.screenStream, { metadata: { type: 'screen-share' } });
+      
+      if (!this.screenCall) {
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('error', null, 'Failed to initiate screen share with PeerJS.');
+        }
+        if (this.screenStream) {
+          this.screenStream.getTracks().forEach(track => track.stop());
+          this.screenStream = null;
+        }
+        return false;
+      }
+
+      // Set up screen share call event handlers
+      this.screenCall.on('stream', (remoteStream) => {
+        // This event is for receiving streams, not relevant for sender
+        console.log('Unexpected stream event on sender side');
+      });
+
+      this.screenCall.on('close', () => {
+        this.endScreenShare();
+      });
+
+      this.screenCall.on('error', (err) => {
+        const errorMessage = this._mapScreenShareError(err);
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('error', null, errorMessage);
+        }
+      });
+
+      // Handle screen share end when user stops sharing via browser UI
+      this.screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+        this.endScreenShare();
+      });
+
+      this.isScreenSharing = true;
+      this.screenShareType = 'sending';
+
+      // For sender, immediately set to active since we have the screen stream
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('active', this.screenStream, null, 'sending');
+      }
+
+      return true;
+    } catch (error) {
+      const errorMessage = this._mapScreenShareError(error);
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, errorMessage);
+      }
+      if (this.screenStream) {
+        this.screenStream.getTracks().forEach(track => track.stop());
+        this.screenStream = null;
+      }
+      return false;
+    }
+  }
+
+  async answerScreenShare(screenCall) {
+    try {
+      this.screenCall = screenCall;
+      this.screenShareType = 'receiving';
+      
+      // Answer the screen share call
+      this.screenCall.answer();
+      
+      this.screenCall.on('stream', (remoteStream) => {
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('active', remoteStream, null, 'receiving');
+        }
+      });
+
+      this.screenCall.on('close', () => {
+        this.endScreenShare();
+      });
+
+      this.screenCall.on('error', (err) => {
+        const errorMessage = this._mapScreenShareError(err);
+        if (this.onScreenShareStatusCallback) {
+          this.onScreenShareStatusCallback('error', null, errorMessage);
+        }
+      });
+
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('connecting', null, null, 'receiving');
+      }
+
+      return true;
+    } catch (error) {
+      const errorMessage = this._mapScreenShareError(error);
+      if (this.onScreenShareStatusCallback) {
+        this.onScreenShareStatusCallback('error', null, errorMessage);
+      }
+      return false;
+    }
+  }
+
+  endScreenShare() {
+    let screenShareWasActive = false;
+    
+    if (this.screenCall) {
+      this.screenCall.close();
+      this.screenCall = null;
+      screenShareWasActive = true;
+    }
+    
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach(track => track.stop());
+      this.screenStream = null;
+    }
+
+    this.isScreenSharing = false;
+    this.screenShareType = null;
+
+    if (this.onScreenShareStatusCallback && screenShareWasActive) {
+      this.onScreenShareStatusCallback('ended');
+    }
+  }
+
+  rejectScreenShare(screenCallObject) {
+    if (screenCallObject) {
+      screenCallObject.close();
+      if (this.screenCall && this.screenCall.peer === screenCallObject.peer) {
+        this.screenCall = null;
+      }
+    }
+  }
+
+  setOnScreenShareStatusCallback(callback) {
+    this.onScreenShareStatusCallback = callback;
+  }
+
+  _getScreenShareConstraints(quality = 'medium') {
+    const constraints = {
+      video: {
+        mediaSource: 'screen'
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      }
+    };
+
+    switch (quality) {
+      case 'low':
+        constraints.video.width = { ideal: 1280, max: 1280 };
+        constraints.video.height = { ideal: 720, max: 720 };
+        constraints.video.frameRate = { ideal: 15, max: 15 };
+        break;
+      case 'high':
+        constraints.video.width = { ideal: 1920, max: 1920 };
+        constraints.video.height = { ideal: 1080, max: 1080 };
+        constraints.video.frameRate = { ideal: 30, max: 30 };
+        break;
+      case 'medium':
+      default:
+        constraints.video.width = { ideal: 1920, max: 1920 };
+        constraints.video.height = { ideal: 1080, max: 1080 };
+        constraints.video.frameRate = { ideal: 15, max: 15 };
+        break;
+    }
+
+    return constraints;
+  }
+
+  _mapScreenShareError(error) {
+    if (!error) return 'An unknown screen sharing error occurred.';
+
+    const errorName = error.name || '';
+    const errorMessage = error.message || '';
+
+    switch (errorName) {
+      case 'NotAllowedError':
+        return 'Screen sharing permission was denied. Please allow screen sharing and try again.';
+      case 'NotFoundError':
+        return 'No screen sources found. Please ensure you have windows or screens available to share.';
+      case 'NotSupportedError':
+        return 'Screen sharing is not supported in your browser. Please use a modern browser like Chrome, Firefox, or Edge.';
+      case 'AbortError':
+        return 'Screen sharing was cancelled by the user.';
+      case 'NotReadableError':
+        return 'Cannot access screen due to hardware or system restrictions.';
+      case 'OverconstrainedError':
+        return 'Screen sharing failed due to technical constraints. Try adjusting quality settings.';
+      case 'SecurityError':
+        return 'Screen sharing blocked due to security restrictions.';
+      case 'TypeError':
+        return 'Screen sharing failed due to a technical error. Please try again.';
+      default:
+        if (errorMessage.includes('peer-unavailable')) {
+          return 'Cannot share screen: The other person is unavailable.';
+        }
+        if (errorMessage.includes('connection-error')) {
+          return 'Screen sharing failed due to a connection error.';
+        }
+        if (errorMessage.includes('network')) {
+          return 'Screen sharing failed due to a network problem.';
+        }
+        return `Screen sharing error: ${errorMessage || 'Please try again.'}`;
+    }
   }
 }
 

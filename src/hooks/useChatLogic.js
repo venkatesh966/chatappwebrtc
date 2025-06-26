@@ -54,6 +54,44 @@ const mapErrorMessageToUserFriendly = (technicalError) => {
     return "Cannot send an empty file. Please select a file with content.";
   }
 
+  // Screen sharing errors
+  if (technicalError.includes("Screen sharing permission was denied")) {
+    return "Screen sharing permission was denied. Please allow screen sharing and try again.";
+  }
+  if (technicalError.includes("No screen sources found")) {
+    return "No screen sources found. Please ensure you have windows or screens available to share.";
+  }
+  if (technicalError.includes("Screen sharing is not supported")) {
+    return "Screen sharing is not supported in your browser. Please use a modern browser like Chrome, Firefox, or Edge.";
+  }
+  if (technicalError.includes("Screen sharing was cancelled")) {
+    return "Screen sharing was cancelled by the user.";
+  }
+  if (technicalError.includes("Cannot access screen")) {
+    return "Cannot access screen due to hardware or system restrictions.";
+  }
+  if (technicalError.includes("Screen sharing failed due to technical constraints")) {
+    return "Screen sharing failed due to technical constraints. Try adjusting quality settings.";
+  }
+  if (technicalError.includes("Screen sharing blocked due to security")) {
+    return "Screen sharing blocked due to security restrictions.";
+  }
+  if (technicalError.includes("Cannot share screen with yourself")) {
+    return "You cannot share screen with your own ID.";
+  }
+  if (technicalError.includes("Already sharing screen")) {
+    return "Already sharing screen. Stop current session first.";
+  }
+  if (technicalError.includes("Cannot share screen: The other person is unavailable")) {
+    return "Cannot share screen: The other person is unavailable.";
+  }
+  if (technicalError.includes("Screen sharing failed due to a connection error")) {
+    return "Screen sharing failed due to a connection error.";
+  }
+  if (technicalError.includes("Screen sharing failed due to a network problem")) {
+    return "Screen sharing failed due to a network problem.";
+  }
+
   // Default for unmatched technical errors
   // If a specific part of a technical error is good, we can try to extract it.
   // For now, a generic message for truly unmapped errors.
@@ -89,6 +127,19 @@ const useChatLogic = () => {
   const [isPeerTyping, setIsPeerTyping] = useState(false); // State for peer typing status
   const peerTypingTimeoutRef = useRef(null); // Ref for peer typing timeout
   const processedFileDownloadsRef = useRef(new Set()); // Ref to track processed file downloads
+
+  // Screen sharing states
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenShareStatus, setScreenShareStatus] = useState('idle');
+  const [screenShareType, setScreenShareType] = useState(null); // 'sending' | 'receiving' | null
+  const [screenShareDuration, setScreenShareDuration] = useState('00:00');
+  const [screenShareQuality, setScreenShareQuality] = useState('medium');
+  const [viewingScreenShare, setViewingScreenShare] = useState(false);
+  const [screenShareStream, setScreenShareStream] = useState(null);
+  const [incomingScreenShare, setIncomingScreenShare] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const screenShareTimerRef = useRef(null);
+  const screenShareStartTimeRef = useRef(null);
 
   const cleanupFileTransfer = (fileId) => {
     if (fileTimeouts.current.has(fileId)) {
@@ -476,23 +527,17 @@ const useChatLogic = () => {
         case "incoming":
           setCallStatus("incoming_ringing");
           playAudio(incomingRingtoneAudioRef, true);
-          if (window.confirm("You have an incoming call. Would you like to answer?")) {
-            pauseAudio(incomingRingtoneAudioRef);
-            WebRTCService.answerCall(streamOrCall);
-          } else {
-            pauseAudio(incomingRingtoneAudioRef);
-            WebRTCService.rejectCall(streamOrCall);
-            setCallStatus("ended");
-            setMessages((prev) => [
-              ...prev,
-              {
-                text: "Incoming call rejected.",
-                sender: "system",
-                isSystem: true,
-                time: new Date(),
-              },
-            ]);
-          }
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: `Incoming call from ${streamOrCall.peer}...`,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
+          // Store the incoming call object for the UI to handle
+          setIncomingCall(streamOrCall);
           break;
         case "connecting":
           setCallStatus("dialing");
@@ -528,6 +573,7 @@ const useChatLogic = () => {
           pauseAudio(outgoingRingingAudioRef);
           setIsCallActive(false);
           setCallStatus("ended"); // Set to ended first
+          setIncomingCall(null); // Clear incoming call
           stopCallTimer();
           
           const lastMessage = messages[messages.length -1];
@@ -562,6 +608,7 @@ const useChatLogic = () => {
           setError(userFriendlyError);
           setIsCallActive(false);
           setCallStatus("error");
+          setIncomingCall(null); // Clear incoming call
           stopCallTimer();
           if (audioRef.current) {
             audioRef.current.srcObject = null;
@@ -582,6 +629,92 @@ const useChatLogic = () => {
       }
     });
 
+    // Screen sharing callback
+    WebRTCService.setOnScreenShareStatusCallback((status, stream, errorMessage, shareType) => {
+      setScreenShareStatus(status);
+      if (status === "active") {
+        setIsScreenSharing(true);
+        setScreenShareType(shareType);
+        setScreenShareStream(stream);
+        setViewingScreenShare(shareType === 'receiving');
+        startScreenShareTimer();
+        
+        const message = shareType === 'sending' 
+          ? "You are now sharing your screen."
+          : "You are now viewing a shared screen.";
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: message,
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      } else if (status === "ended") {
+        setIsScreenSharing(false);
+        setScreenShareType(null);
+        setScreenShareStream(null);
+        setViewingScreenShare(false);
+        setIncomingScreenShare(null);
+        stopScreenShareTimer();
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: "Screen sharing has ended.",
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      } else if (status === "incoming") {
+        setIncomingScreenShare(stream);
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: `${stream.peer} wants to share their screen with you.`,
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      } else if (status === "connecting") {
+        const message = shareType === 'sending' 
+          ? "Initiating screen share..."
+          : "Connecting to screen share...";
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: message,
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      } else if (status === "error") {
+        setIsScreenSharing(false);
+        setScreenShareType(null);
+        setScreenShareStream(null);
+        setViewingScreenShare(false);
+        setIncomingScreenShare(null);
+        stopScreenShareTimer();
+        
+        const friendlyError = mapErrorMessageToUserFriendly(errorMessage);
+        setError(friendlyError);
+        setMessages((prev) => [
+          ...prev,
+          {
+            text: friendlyError,
+            sender: "system",
+            isSystem: true,
+            time: new Date(),
+          },
+        ]);
+      }
+    });
 
     return () => {
       fileTimeouts.current.forEach((timeout) => clearTimeout(timeout));
@@ -594,11 +727,17 @@ const useChatLogic = () => {
         clearTimeout(peerTypingTimeoutRef.current);
         peerTypingTimeoutRef.current = null;
       }
+      if (screenShareTimerRef.current) { // Clear screen share timer on unmount
+        clearInterval(screenShareTimerRef.current);
+        screenShareTimerRef.current = null;
+      }
       processedFileDownloadsRef.current.clear(); // Clear on unmount
       pauseAudio(incomingRingtoneAudioRef);
       pauseAudio(outgoingRingingAudioRef);
       WebRTCService.endCall(); // Ensure call is ended on unmount
+      WebRTCService.endScreenShare(); // Ensure screen share is ended on unmount
       stopCallTimer(); // Stop call timer
+      stopScreenShareTimer(); // Stop screen share timer
       WebRTCService.disconnect();
       setIsConnecting(false); // Reset connecting state
     };
@@ -755,6 +894,28 @@ const useChatLogic = () => {
     setCallDuration("00:00"); // Reset duration
   };
 
+  const startScreenShareTimer = () => {
+    screenShareStartTimeRef.current = Date.now();
+    screenShareTimerRef.current = setInterval(() => {
+      const duration = Math.floor(
+        (Date.now() - screenShareStartTimeRef.current) / 1000
+      );
+      const minutes = Math.floor(duration / 60)
+        .toString()
+        .padStart(2, "0");
+      const seconds = (duration % 60).toString().padStart(2, "0");
+      setScreenShareDuration(`${minutes}:${seconds}`);
+    }, 1000);
+  };
+
+  const stopScreenShareTimer = () => {
+    if (screenShareTimerRef.current) {
+      clearInterval(screenShareTimerRef.current);
+      screenShareTimerRef.current = null;
+    }
+    setScreenShareDuration("00:00");
+  };
+
   const handleStartCall = async (currentPeerId) => { // Pass peerId
     if (currentPeerId) {
       setError(""); 
@@ -872,6 +1033,116 @@ const useChatLogic = () => {
     }
   };
 
+  // Screen sharing handlers
+  const handleStartScreenShare = async (currentPeerId, options = {}) => {
+    if (currentPeerId) {
+      setError("");
+      setScreenShareStatus("connecting");
+      
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: `Starting screen share with ${currentPeerId}...`,
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+
+      const success = await WebRTCService.startScreenShare(currentPeerId, options);
+      if (!success) {
+        setScreenShareStatus("error");
+        const currentError = error;
+        if (!currentError) {
+          const specificError = mapErrorMessageToUserFriendly("Failed to start screen share. Please check permissions and try again.");
+          setError(specificError);
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: specificError,
+              sender: "system",
+              isSystem: true,
+              time: new Date(),
+            },
+          ]);
+        }
+      }
+    } else {
+      setError(mapErrorMessageToUserFriendly("Cannot start screen share: No peer connected."));
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "Cannot start screen share as you are not connected to anyone.",
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+    }
+  };
+
+  const handleStopScreenShare = () => {
+    WebRTCService.endScreenShare();
+  };
+
+  const handleAnswerScreenShare = async (screenCall) => {
+    if (screenCall) {
+      const success = await WebRTCService.answerScreenShare(screenCall);
+      if (success) {
+        setIncomingScreenShare(null);
+      }
+    }
+  };
+
+  const handleRejectScreenShare = (screenCall) => {
+    if (screenCall) {
+      WebRTCService.rejectScreenShare(screenCall);
+      setIncomingScreenShare(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "Screen share request rejected.",
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+    }
+  };
+
+  const handleScreenShareQualityChange = (quality) => {
+    setScreenShareQuality(quality);
+  };
+
+  // Call answer/reject handlers
+  const handleAnswerCall = async () => {
+    if (incomingCall) {
+      pauseAudio(incomingRingtoneAudioRef);
+      const success = await WebRTCService.answerCall(incomingCall);
+      if (success) {
+        setIncomingCall(null);
+      }
+    }
+  };
+
+  const handleRejectCall = () => {
+    if (incomingCall) {
+      pauseAudio(incomingRingtoneAudioRef);
+      WebRTCService.rejectCall(incomingCall);
+      setIncomingCall(null);
+      setCallStatus("ended");
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: "Incoming call rejected.",
+          sender: "system",
+          isSystem: true,
+          time: new Date(),
+        },
+      ]);
+    }
+  };
+
   // The 'peerId' state in this hook represents the *connected* peer's ID after successful connection.
   // For the input field, the Chat.jsx component will manage its own state, let's call it 'peerIdInput'.
   // The handleConnect function will take this 'peerIdInput' as an argument.
@@ -899,6 +1170,19 @@ const useChatLogic = () => {
     incomingRingtoneAudioRef, // Added
     outgoingRingingAudioRef, // Added
 
+    // Screen sharing states
+    isScreenSharing,
+    screenShareStatus,
+    screenShareType,
+    screenShareDuration,
+    screenShareQuality,
+    viewingScreenShare,
+    screenShareStream,
+    incomingScreenShare,
+    
+    // Call states
+    incomingCall,
+
     handleConnect, // Takes peerIdToConnect (from input in Chat.jsx)
     handleSendMessage, // Takes connectedPeerId, messageContent
     handleEndSession,
@@ -911,6 +1195,17 @@ const useChatLogic = () => {
     isPeerTyping, // Peer typing status
     formatTime,
     isToday,
+    
+    // Screen sharing handlers
+    handleStartScreenShare, // Takes connectedPeerId, options
+    handleStopScreenShare,
+    handleAnswerScreenShare, // Takes screenCall
+    handleRejectScreenShare, // Takes screenCall
+    handleScreenShareQualityChange, // Takes quality
+    
+    // Call handlers
+    handleAnswerCall,
+    handleRejectCall,
     
     // The actual connected peer's ID is also returned for use in handlers that need it
     // The component will have an input field state for peer ID to connect to.
