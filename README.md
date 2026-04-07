@@ -31,21 +31,21 @@ This project is designed as a lightweight one-to-one direct-sharing tool.
 
 ![NoBridge Main Interface](public/homepage.png)
 
-### App Screenshot 1
+### File Send
 
-![NoBridge Screenshot 1](public/Screenshot%202025-05-11%20at%207.03.42%E2%80%AFPM.png)
+![NoBridge File Send](public/file_send1.png)
 
-### App Screenshot 2
+### File Download
 
-![NoBridge Screenshot 2](public/Screenshot%202025-05-11%20at%207.04.17%E2%80%AFPM.png)
+![NoBridge File Download](public/filedownload.png)
 
 ### Screen Sharing
 
 ![NoBridge Screen Sharing](public/screenshare.png)
 
-### App Screenshot 3
+### File Transfer Progress
 
-![NoBridge Screenshot 3](public/Screenshot%202025-05-11%20at%207.06.58%E2%80%AFPM.png)
+![NoBridge File Transfer Progress](public/filesend2.png)
 
 ## Local Development
 
