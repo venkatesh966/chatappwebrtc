@@ -25,6 +25,12 @@ This project is designed as a lightweight one-to-one direct-sharing tool.
 - PeerJS
 - WebRTC
 
+## Chrome Extension
+
+The published Chrome extension is available here:
+
+[NoBridge – Private Chat, Calls & Screen Sharing](https://chromewebstore.google.com/detail/nobridge-%E2%80%93-private-chat-c/nbakmpdmadihdiojlcdcbbafoagjbdee)
+
 ## Screenshots
 
 ### Main Interface
