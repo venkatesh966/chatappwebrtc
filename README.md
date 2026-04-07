@@ -59,6 +59,16 @@ The production build output is generated in `dist/`.
 
 The extension uses the assets from `public/`, including `manifest.json` and `background.js`.
 
+## Extension Permissions
+
+The Chrome extension manifest currently requests:
+
+- `tabs`
+- `activeTab`
+- `desktopCapture`
+
+These permissions are used to open the app UI from the extension action and support screen-sharing related browser capabilities.
+
 ## Project Structure
 
 ```text
@@ -78,6 +88,15 @@ public/
 - Screen sharing works best on desktop browsers.
 - Some restricted networks may block or degrade peer-to-peer connectivity.
 - Mobile browser support is more limited than desktop support.
+
+## Browser Support
+
+- Chrome: recommended
+- Edge: generally supported
+- Firefox: partial to good support depending on WebRTC behavior
+- Safari: more limited, especially around screen/audio sharing
+
+For the best experience, use a current desktop Chromium-based browser.
 
 ## Privacy Notes
 
@@ -101,3 +120,9 @@ This is an early open-source release of the project. The main features are imple
 ## Contributing
 
 Issues, bug reports, and improvement suggestions are welcome. If you open an issue, include your browser, OS, and reproduction steps when possible.
+
+See `CONTRIBUTING.md` for contribution guidance.
+
+## License
+
+MIT
