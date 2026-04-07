@@ -25,6 +25,28 @@ This project is designed as a lightweight one-to-one direct-sharing tool.
 - PeerJS
 - WebRTC
 
+## Screenshots
+
+### Main Interface
+
+![NoBridge Main Interface](public/homepage.png)
+
+### App Screenshot 1
+
+![NoBridge Screenshot 1](public/Screenshot%202025-05-11%20at%207.03.42%E2%80%AFPM.png)
+
+### App Screenshot 2
+
+![NoBridge Screenshot 2](public/Screenshot%202025-05-11%20at%207.04.17%E2%80%AFPM.png)
+
+### Screen Sharing
+
+![NoBridge Screen Sharing](public/screenshare.png)
+
+### App Screenshot 3
+
+![NoBridge Screenshot 3](public/Screenshot%202025-05-11%20at%207.06.58%E2%80%AFPM.png)
+
 ## Local Development
 
 ### Prerequisites
