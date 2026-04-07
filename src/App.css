@@ -20,8 +20,6 @@ body {
 
 #root {
   max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
   text-align: center;
 }
 
@@ -59,4 +57,21 @@ body {
 
 .read-the-docs {
   color: #888;
+}
+
+
+@keyframes fadeSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animated-tagline {
+  animation: fadeSlideUp 0.8s ease-out forwards;
+  animation-delay: 0.2s;
 }
