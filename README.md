@@ -25,6 +25,28 @@ This project is designed as a lightweight one-to-one direct-sharing tool.
 - PeerJS
 - WebRTC
 
+## Screenshots
+
+### Main Interface
+
+![NoBridge Main Interface](public/homepage.png)
+
+### File Send
+
+![NoBridge File Send](public/file_send1.png)
+
+### File Download
+
+![NoBridge File Download](public/filedownload.png)
+
+### Screen Sharing
+
+![NoBridge Screen Sharing](public/screenshare.png)
+
+### File Transfer Progress
+
+![NoBridge File Transfer Progress](public/filesend2.png)
+
 ## Local Development
 
 ### Prerequisites
